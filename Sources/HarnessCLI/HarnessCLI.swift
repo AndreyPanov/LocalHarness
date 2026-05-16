@@ -2,6 +2,8 @@ import Foundation
 import ArgumentParser
 import HarnessCore
 
+@available(macOS 10.15, *)
+@main
 struct HarnessCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "harness",
