@@ -5,6 +5,8 @@ final class ToolExecutor: Sendable {
         switch call.name {
         case "list_files":
             return try listFiles(call)
+        case "read_file":
+            return try readFile(call)
         default:
             throw HarnessError.unknownTool(call.name)
         }
@@ -18,6 +20,15 @@ final class ToolExecutor: Sendable {
         
         return ToolResult(toolName: "list_files", output: files.sorted().joined(separator: "\n"))
         
+    }
+    
+    private func readFile(_ call: ToolCall) throws -> ToolResult {
+        guard let path = call.arguments["path"] else {
+            throw HarnessError.missingToolArgument(toolName: "read_file", argumentName: "path")
+        }
+        let url = URL(fileURLWithPath: path)
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        return ToolResult(toolName: "read_file", output: contents)
     }
 }
 

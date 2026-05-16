@@ -6,9 +6,15 @@ final class MockAgentReasoner: AgentReasoner {
         let hasListedFiles = run.steps.contains {
             $0.type == .toolResult && $0.message.contains("list_files")
         }
+        let hasReadPackageFile = run.steps.contains {
+            $0.type == .toolResult && $0.message.contains("read_file")
+        }
         if !hasListedFiles {
             return .requestTool(
                 ToolCall(name: "list_files", arguments: ["path": "."]))
+        }
+        if !hasReadPackageFile {
+            return .requestTool(ToolCall(name: "read_file", arguments: ["path": "Package.swift"]))
         }
         return .finish("I inspected the project structure and saved the run trace.")
     }
