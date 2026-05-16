@@ -5,7 +5,7 @@ final class JsonRunStore: RunStore {
         self.runDirectory = runDirectory
     }
     
-    func save(run: Run) throws {
+    func save(_ run: Run) throws {
         try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true)
         let url = runDirectory.appendingPathComponent("\(run.id).json")
         

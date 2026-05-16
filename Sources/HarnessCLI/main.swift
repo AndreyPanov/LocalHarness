@@ -4,6 +4,8 @@
 @main
 struct LocalHarness {
     static func main() {
-        print("Hello, world!")
+        let harness = Harness()
+        let run = try await harness.run(goal: goal)
+        print(run.finalAnswer ?? "No final answer")
     }
 }
