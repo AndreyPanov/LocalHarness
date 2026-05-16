@@ -5,12 +5,14 @@ public struct RunStep: Codable, Sendable {
     public let type: RunStepType
     public let message: String
     public let createdAt: Date
+    public let toolName: String?
     
-    public init(id: String = UUID().uuidString, type: RunStepType, message: String, createdAt: Date = .init()) {
+    public init(id: String = UUID().uuidString, type: RunStepType, message: String, createdAt: Date = .init(), toolName: String? = nil) {
         self.id = id
         self.type = type
         self.message = message
         self.createdAt = createdAt
+        self.toolName = toolName
     }
 }
 

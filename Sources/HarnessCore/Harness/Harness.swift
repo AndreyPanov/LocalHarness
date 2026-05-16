@@ -33,11 +33,11 @@ public final class Harness {
                 let action = try await reasoner.nextAction(for: run)
                 switch action {
                 case .requestTool(let toolCall):
-                    run.steps.append(RunStep(type: .toolCall, message: "\(toolCall.name): \(toolCall.arguments)"))
+                    run.steps.append(RunStep(type: .toolCall, message: "\(toolCall.name): \(toolCall.arguments)", toolName: toolCall.name))
                     
                     
                     let result = try await toolExecutor.execute(toolCall)
-                    run.steps.append(RunStep(type: .toolResult, message: "\(result.toolName):\n\(result.output)"))
+                    run.steps.append(RunStep(type: .toolResult, message: "\(result.toolName):\n\(result.output)", toolName: toolCall.name))
                     try runStore.save(run)
                     
                 case .finish(let answer):

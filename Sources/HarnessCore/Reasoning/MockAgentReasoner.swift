@@ -4,10 +4,10 @@ final class MockAgentReasoner: AgentReasoner {
 
     func nextAction(for run: Run) async throws -> AgentAction {
         let hasListedFiles = run.steps.contains {
-            $0.type == .toolResult && $0.message.contains("list_files")
+            $0.type == .toolResult && $0.toolName == "list_files"
         }
         let hasReadPackageFile = run.steps.contains {
-            $0.type == .toolResult && $0.message.contains("read_file")
+            $0.type == .toolResult && $0.toolName == "read_file"
         }
         if !hasListedFiles {
             return .requestTool(
@@ -16,6 +16,6 @@ final class MockAgentReasoner: AgentReasoner {
         if !hasReadPackageFile {
             return .requestTool(ToolCall(name: "read_file", arguments: ["path": "Package.swift"]))
         }
-        return .finish("I inspected the project structure and saved the run trace.")
+        return .finish("I inspected the project structure, read Package.swift and saved the run trace.")
     }
 }
