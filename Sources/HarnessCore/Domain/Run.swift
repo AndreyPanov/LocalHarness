@@ -9,15 +9,10 @@ public struct Run: Codable, Sendable {
     public internal(set) var steps: [RunStep]
     public internal(set) var finalAnswer: String?
     
-    internal init(
-        id: String = UUID().uuidString,
-        goal: String,
-        createdAt: Date = .init(),
-        status: RunStatus = .running,
-        steps: [RunStep] = [],
-        finalAnswer: String? = nil) {
+    internal init(id: String = UUID().uuidString, goal: String, createdAt: Date = .init(), status: RunStatus = .running, steps: [RunStep] = [], finalAnswer: String? = nil) {
         self.id = id
         self.goal = goal
+        self.createdAt = createdAt
         self.status = status
         self.steps = steps
         self.finalAnswer = finalAnswer
