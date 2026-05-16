@@ -1,3 +1,5 @@
+import Foundation
+
 final class JsonRunStore: RunStore {
     private let runDirectory: URL
     
@@ -14,7 +16,7 @@ final class JsonRunStore: RunStore {
         encoder.dateEncodingStrategy = .iso8601
         
         let data = try encoder.encode(run)
-        try data.write(to: url, optional: .atomic)
+        try data.write(to: url, options: .atomic)
     }
     
     func load(id: String) throws -> Run {

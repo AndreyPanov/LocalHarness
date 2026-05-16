@@ -18,7 +18,7 @@ public final class Harness {
     public func run(goal: String) async throws -> Run {
         var run = Run(goal: goal)
         
-        try runStore.save(run: run)
+        try runStore.save(run)
         
         do {
             var iteration = 0
@@ -36,7 +36,7 @@ public final class Harness {
                     run.steps.append(RunStep(type: .toolCall, message: "\(toolCall.name): \(toolCall.arguments)"))
                     
                     
-                    let result = try await toolExecutor.execute(tool: toolCall)
+                    let result = try await toolExecutor.execute(toolCall)
                     run.steps.append(RunStep(type: .toolResult, message: "\(result.toolName):\n\(result.output)"))
                     try runStore.save(run)
                     

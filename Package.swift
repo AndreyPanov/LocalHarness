@@ -40,7 +40,7 @@ let package = Package(
         ),
         .testTarget(
             name: "LocalHarnessTests",
-            dependencies: ["LocalHarness"]
+            dependencies: ["HarnessCore"]
         ),
     ],
     swiftLanguageModes: [.v6]

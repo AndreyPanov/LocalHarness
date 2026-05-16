@@ -1,3 +1,5 @@
+import Foundation
+
 public struct RunStep: Codable, Sendable {
     public let id: String
     public let type: RunStepType

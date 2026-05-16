@@ -1,3 +1,5 @@
+import Foundation
+
 public struct Run: Codable, Sendable {
     public let id: String
     public let goal: String

@@ -1,3 +1,5 @@
+import Foundation
+
 final class MockAgentReasoner: AgentReasoner {
     func nextAction(for run: Run) async throws -> AgentAction {
         let hasListedFiles = run.steps.contains {
