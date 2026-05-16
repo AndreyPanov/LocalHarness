@@ -12,11 +12,18 @@ public struct Run: Codable, Sendable {
         goal: String,
         createdAt: Date = .init(),
         status: RunStatus = .running,
-        steps: [RunStep] = []
-    ) {
+        steps: [RunStep] = [],
+        finalAnswer: String? = nil) {
         self.id = id
         self.goal = goal
         self.status = status
         self.steps = steps
+        self.finalAnswer = finalAnswer
     }
+}
+
+public enum RunStatus: String, Codable, Sendable {
+    case running
+    case completed
+    case failed
 }

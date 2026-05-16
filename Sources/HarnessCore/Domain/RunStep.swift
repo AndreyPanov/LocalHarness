@@ -13,7 +13,7 @@ public struct RunStep: Codable, Sendable {
 }
 
 public enum RunStepType: String, Codable, Sendable {
-    case modelCall
+    case reasonerCall
     case toolCall
     case toolResult
     case finalAnswer

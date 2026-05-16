@@ -1,7 +1,9 @@
-//
-//  ToolResult.swift
-//  LocalHarness
-//
-//  Created by Andrei Panov on 15/05/2026.
-//
-
+struct ToolResult: Codable, Sendable {
+    let toolName: String
+    let output: String
+    
+    init(toolName: String, output: String) {
+        self.toolName = toolName
+        self.output = output
+    }
+}

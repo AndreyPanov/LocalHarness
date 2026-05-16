@@ -1,7 +1,4 @@
-//
-//  RunStore.swift
-//  LocalHarness
-//
-//  Created by Andrei Panov on 15/05/2026.
-//
-
+protocol RunStore: Sendable {
+    func save(_ run: Run) throws
+    func load(id: String) throws -> Run
+}

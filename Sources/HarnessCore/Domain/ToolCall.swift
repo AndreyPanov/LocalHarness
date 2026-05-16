@@ -1,7 +1,9 @@
-//
-//  ToolCall.swift
-//  LocalHarness
-//
-//  Created by Andrei Panov on 15/05/2026.
-//
-
+struct ToolCall: Sendable {
+    let name: String
+    let arguments: [String: String]
+    
+    public init(name: String, arguments: [String: String]) {
+        self.name = name
+        self.arguments = arguments
+    }
+}

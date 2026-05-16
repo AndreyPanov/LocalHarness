@@ -1,7 +1,4 @@
-//
-//  AgentAction.swift
-//  LocalHarness
-//
-//  Created by Andrei Panov on 15/05/2026.
-//
-
+enum AgentAction: Sendable {
+    case requestTool(ToolCall)
+    case finish(String)
+}

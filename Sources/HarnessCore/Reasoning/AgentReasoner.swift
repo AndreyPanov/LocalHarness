@@ -1,7 +1,3 @@
-//
-//  AgentReasoner.swift
-//  LocalHarness
-//
-//  Created by Andrei Panov on 15/05/2026.
-//
-
+protocol AgentReasoner: Sendable {
+    func nextAction(for run: Run) async throws -> AgentAction
+}
