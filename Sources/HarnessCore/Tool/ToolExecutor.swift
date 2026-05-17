@@ -2,6 +2,7 @@ import Foundation
 
 final class ToolExecutor: Sendable {
     func execute(_ call: ToolCall) async throws -> ToolResult {
+        print("[Trace] ToolExecutor.execute(call: \(call))")
         switch call.name {
         case "list_files":
             return try listFiles(call)
@@ -13,6 +14,7 @@ final class ToolExecutor: Sendable {
     }
     
     private func listFiles(_ call: ToolCall) throws -> ToolResult {
+        print("[Trace] ToolExecutor.listFiles(call: \(call))")
         let path = call.arguments["path"] ?? "."
         let url = URL(fileURLWithPath: path)
         
@@ -23,6 +25,7 @@ final class ToolExecutor: Sendable {
     }
     
     private func readFile(_ call: ToolCall) throws -> ToolResult {
+        print("[Trace] ToolExecutor.readFile(call: \(call))")
         guard let path = call.arguments["path"] else {
             throw HarnessError.missingToolArgument(toolName: "read_file", argumentName: "path")
         }

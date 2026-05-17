@@ -5,11 +5,13 @@ final class LLMAgentReasoner: AgentReasoner {
     private let model: String
     
     init(provider: any LLMProvider, model: String = "qwen2.5-coder:7b") {
+        print("[Trace] LLMAgentReasoner.init(provider: \(provider), model: \(model))")
         self.provider = provider
         self.model = model
     }
     
     func nextAction(for run: Run) async throws -> AgentAction {
+        print("[Trace] LLMAgentReasoner.nextAction(run: \(run))")
         let response = try await provider.complete(LLMRequest(model: model, systemPrompt: systemPrompt, userPrompt: userPrompt(for: run)))
         let data = Data(response.utf8)
         let decoded = try JSONDecoder().decode(DecodedAgentAction.self, from: data)
@@ -79,6 +81,7 @@ final class LLMAgentReasoner: AgentReasoner {
     }
 
     private func userPrompt(for run: Run) -> String {
+        print("[Trace] LLMAgentReasoner.userPrompt(run: \(run))")
         let steps = run.steps.map { step in
             """
             - type: \(step.type.rawValue)

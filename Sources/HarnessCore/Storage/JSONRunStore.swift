@@ -4,10 +4,12 @@ final class JsonRunStore: RunStore {
     private let runDirectory: URL
     
     init(runDirectory: URL = URL(fileURLWithPath: "runs")) {
+        print("[Trace] JsonRunStore.init(runDirectory: \(runDirectory))")
         self.runDirectory = runDirectory
     }
     
     func save(_ run: Run) throws {
+        print("[Trace] JsonRunStore.save(run: \(run))")
         try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true)
         let url = runDirectory.appendingPathComponent("\(run.id).json")
         
@@ -20,6 +22,7 @@ final class JsonRunStore: RunStore {
     }
     
     func load(id: String) throws -> Run {
+        print("[Trace] JsonRunStore.load(id: \(id))")
         let url = runDirectory.appendingPathComponent("\(id).json")
         let data = try Data(contentsOf: url)
         

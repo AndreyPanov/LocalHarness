@@ -22,6 +22,7 @@ struct RunCommand: AsyncParsableCommand {
     var goal: String
 
     func run() async throws {
+        print("[Trace] RunCommand.run(goal: \(goal))")
         let harness = Harness()
         let run = try await harness.run(goal: goal)
         print("Run completed: \(run.id)")

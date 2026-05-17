@@ -3,6 +3,7 @@ import Foundation
 final class MockAgentReasoner: AgentReasoner {
 
     func nextAction(for run: Run) async throws -> AgentAction {
+        print("[Trace] MockAgentReasoner.nextAction(run: \(run))")
         let hasListedFiles = run.steps.contains {
             $0.type == .toolResult && $0.toolName == "list_files"
         }

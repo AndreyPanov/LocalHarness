@@ -8,6 +8,7 @@ public struct RunStep: Codable, Sendable {
     public let toolName: String?
     
     public init(id: String = UUID().uuidString, type: RunStepType, message: String, createdAt: Date = .init(), toolName: String? = nil) {
+        print("[Trace] RunStep.init(id: \(id), type: \(type), message: \(message), createdAt: \(createdAt), toolName: \(String(describing: toolName)))")
         self.id = id
         self.type = type
         self.message = message

@@ -4,10 +4,12 @@ final class OllamaLLMProvider: LLMProvider {
     private let baseURL: URL
     
     init(baseURL: URL = URL(string: "http://localhost:11434")!) {
+        print("[Trace] OllamaLLMProvider.init(baseURL: \(baseURL))")
         self.baseURL = baseURL
     }
     
     func complete(_ request: LLMRequest) async throws -> String {
+        print("[Trace] OllamaLLMProvider.complete(request: \(request))")
         let url = baseURL.appendingPathComponent("/api/chat")
         let actionSchema: [String: Any] = [
             "oneOf": [

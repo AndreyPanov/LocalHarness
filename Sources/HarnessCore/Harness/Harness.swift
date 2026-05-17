@@ -4,18 +4,21 @@ public final class Harness {
     private let runStore: any RunStore
     
     public init() {
+        print("[Trace] Harness.init()")
         self.reasoner = LLMAgentReasoner(provider: OllamaLLMProvider())
         self.toolExecutor = ToolExecutor()
         self.runStore = JsonRunStore()
     }
     
     internal init(reasoner: any AgentReasoner, toolExecutor: ToolExecutor, runStore: any RunStore) {
+        print("[Trace] Harness.init(reasoner: \(reasoner), toolExecutor: \(toolExecutor), runStore: \(runStore))")
         self.reasoner = reasoner
         self.toolExecutor = toolExecutor
         self.runStore = runStore
     }
     
     public func run(goal: String) async throws -> Run {
+        print("[Trace] Harness.run(goal: \(goal))")
         var run = Run(goal: goal)
         
         try runStore.save(run)
