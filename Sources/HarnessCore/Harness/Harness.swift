@@ -4,7 +4,7 @@ public final class Harness {
     private let runStore: any RunStore
     
     public init() {
-        self.reasoner = MockAgentReasoner()
+        self.reasoner = LLMAgentReasoner(provider: OllamaLLMProvider())
         self.toolExecutor = ToolExecutor()
         self.runStore = JsonRunStore()
     }

@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "HarnessCLI"
-               BuildableName = "harness"
+               BuildableName = "HarnessCLI"
                BlueprintName = "HarnessCLI"
                ReferencedContainer = "container:">
             </BuildableReference>
@@ -46,7 +46,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "HarnessCLI"
-            BuildableName = "harness"
+            BuildableName = "HarnessCLI"
             BlueprintName = "HarnessCLI"
             ReferencedContainer = "container:">
          </BuildableReference>
