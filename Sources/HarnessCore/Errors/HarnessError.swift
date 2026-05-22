@@ -4,4 +4,5 @@ enum HarnessError: Error, Sendable {
     case maxIterationsExceeded(Int)
     case llmRequestFailed
     case invalidAgentAction(String)
+    case invalidMonth(String)
 }

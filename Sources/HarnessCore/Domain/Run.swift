@@ -1,7 +1,7 @@
 import Foundation
 
 public struct Run: Codable, Sendable {
-    public let id: String
+    public let id: RunID
     public let goal: String
     public let createdAt: Date
     
@@ -9,7 +9,7 @@ public struct Run: Codable, Sendable {
     public internal(set) var steps: [RunStep]
     public internal(set) var finalAnswer: String?
     
-    internal init(id: String = UUID().uuidString, goal: String, createdAt: Date = .init(), status: RunStatus = .running, steps: [RunStep] = [], finalAnswer: String? = nil) {
+    internal init(id: RunID = RunID(), goal: String, createdAt: Date = .init(), status: RunStatus = .running, steps: [RunStep] = [], finalAnswer: String? = nil) {
         print("[Trace] Run.init(id: \(id), goal: \(goal), createdAt: \(createdAt), status: \(status), steps: \(steps), finalAnswer: \(String(describing: finalAnswer)))")
         self.id = id
         self.goal = goal
