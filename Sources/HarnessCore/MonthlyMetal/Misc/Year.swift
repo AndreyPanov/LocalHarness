@@ -1,19 +1,17 @@
-import Foundation
+public struct Year: Codable, Hashable, Sendable, CustomStringConvertible {
+    public let rawValue: Int
 
-public struct RunID: Codable, Hashable, Sendable, CustomStringConvertible {
-    public let rawValue: String
-    
-    public init(_ rawValue: String = UUID().uuidString) {
+    public init(_ rawValue: Int) {
         self.rawValue = rawValue
     }
 
     public var description: String {
-        rawValue
+        String(rawValue)
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        self.rawValue = try container.decode(String.self)
+        self.rawValue = try container.decode(Int.self)
     }
 
     public func encode(to encoder: Encoder) throws {

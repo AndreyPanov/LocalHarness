@@ -1,6 +1,6 @@
 import Foundation
 
-public struct RunID: Codable, Hashable, Sendable, CustomStringConvertible {
+public struct BandID: Codable, Hashable, Sendable, CustomStringConvertible {
     public let rawValue: String
     
     public init(_ rawValue: String = UUID().uuidString) {
