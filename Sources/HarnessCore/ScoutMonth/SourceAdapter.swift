@@ -1,0 +1,11 @@
+protocol ReleaseDiscoverySource: Sendable {
+    func discover(month: ReleaseMonth, context: ResearchContext) async throws -> [ReleaseCandidate]
+}
+
+protocol BandMetadataSource: Sendable {
+    func enrich(_ release: MetalRelease, context: ResearchContext) async throws -> MetalRelease
+}
+
+protocol AvailabilitySource: Sendable {
+    func check(_ release: MetalRelease, context: ResearchContext) async throws -> MetalRelease
+}

@@ -1,5 +1,21 @@
 import Foundation
 
+public struct Band: Codable, Hashable, Sendable {
+    public let id: BandID
+    public let name: String
+    public let country: String?
+    public let formedIn: Date?
+    public let history: String?
+
+    public init(id: BandID, name: String, country: String? = nil, formedIn: Date? = nil, history: String? = nil) {
+        self.id = id
+        self.name = name
+        self.country = country
+        self.formedIn = formedIn
+        self.history = history
+    }
+}
+
 public struct BandID: Codable, Hashable, Sendable, CustomStringConvertible {
     public let rawValue: String
     

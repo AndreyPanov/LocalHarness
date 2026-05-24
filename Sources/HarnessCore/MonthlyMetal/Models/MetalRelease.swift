@@ -1,47 +1,32 @@
 import Foundation
 
 public struct MetalRelease: Codable, Hashable, Sendable {
-    public let identity: ReleaseIdentity
-    public var releaseDate: DateOnly?
-    public var genre: String?
-    public var country: CountryName?
-    public var formationYear: Year?
-    public var shortHistory: String?
-    public var albumType: AlbumType?
-    public var metalArchives: SourceLink?
-    public var spotify: SourceLink?
-    public var bandcamp: SourceLink?
-    public var cdAvailability: AvailabilityStatus
-    public var bandcampCdDigital: TernaryStatus
-    public var summary: String?
-    public var sources: [SourceReference]
+    let bandName: String
+    let albumTitle: String
+    let releaseDate: Date?
+    let genre: String?
+    let country: String?
+    let formationDate: Date?
+    let albumType: AlbumType?
+    let metalArchivesURL: URL?
+    let spotifyURL: URL?
+    let bandcampURL: URL?
+    let cdAvailability: AvailabilityStatus
+    let bandcampCdDigital: TernaryStatus
+    let summary: String?
+    let sources: [SourceReference]
 
-    public init(
-        identity: ReleaseIdentity,
-        releaseDate: DateOnly? = nil,
-        genre: String? = nil,
-        country: CountryName? = nil,
-        formationYear: Year? = nil,
-        shortHistory: String? = nil,
-        albumType: AlbumType? = nil,
-        metalArchives: SourceLink? = nil,
-        spotify: SourceLink? = nil,
-        bandcamp: SourceLink? = nil,
-        cdAvailability: AvailabilityStatus = .unknown,
-        bandcampCdDigital: TernaryStatus = .unknown,
-        summary: String? = nil,
-        sources: [SourceReference] = []
-    ) {
-        self.identity = identity
+    public init(bandName: String, albumTitle: String, releaseDate: Date?, genre: String?, country: String?, formationDate: Date?, albumType: AlbumType?, metalArchivesURL: URL?, spotifyURL: URL?, bandcampURL: URL?, cdAvailability: AvailabilityStatus, bandcampCdDigital: TernaryStatus, summary: String?, sources: [SourceReference]) {
+        self.bandName = bandName
+        self.albumTitle = albumTitle
         self.releaseDate = releaseDate
         self.genre = genre
         self.country = country
-        self.formationYear = formationYear
-        self.shortHistory = shortHistory
+        self.formationDate = formationDate
         self.albumType = albumType
-        self.metalArchives = metalArchives
-        self.spotify = spotify
-        self.bandcamp = bandcamp
+        self.metalArchivesURL = metalArchivesURL
+        self.spotifyURL = spotifyURL
+        self.bandcampURL = bandcampURL
         self.cdAvailability = cdAvailability
         self.bandcampCdDigital = bandcampCdDigital
         self.summary = summary

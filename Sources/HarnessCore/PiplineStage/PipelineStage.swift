@@ -9,7 +9,7 @@ protocol PipelineStage {
 
 public struct PipelineContext: Sendable {
     public let runID: String
-    public let month: ScoutMonth
+    public let month: ReleaseMonth
     public let runsDirectory: URL
     public let knowledgeDirectory: URL
     
@@ -17,7 +17,19 @@ public struct PipelineContext: Sendable {
         runsDirectory.appendingPathComponent(runID, isDirectory: true)
     }
     
-    public init(runID: String, month: ScoutMonth, runsDirectory: URL, knowledgeDirectory: URL) {
+    public var seedFileURL: URL {
+        knowledgeDirectory
+            .appendingPathComponent("seeds", isDirectory: true)
+            .appendingPathComponent("\(month.rawValue).json")
+    }
+    
+    public var releaseKnowledgeURL: URL {
+        knowledgeDirectory
+            .appendingPathComponent("releases", isDirectory: true)
+            .appendingPathComponent("\(month.rawValue).json")
+    }
+    
+    public init(runID: String, month: ReleaseMonth, runsDirectory: URL, knowledgeDirectory: URL) {
         self.runID = runID
         self.month = month
         self.runsDirectory = runsDirectory
