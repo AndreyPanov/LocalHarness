@@ -1,5 +1,9 @@
-enum HTMLTextExtractor {
-    static func title(from html: String) -> String? {
+struct HTMLTextExtractor: Sendable {
+    static let shared = HTMLTextExtractor()
+
+    private init() {}
+
+    func title(from html: String) -> String? {
         guard let range = html.range(
             of: #"<title[^>]*>(.*?)</title>"#,
             options: [.regularExpression, .caseInsensitive]
@@ -16,7 +20,7 @@ enum HTMLTextExtractor {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    static func visibleText(from html: String) -> String {
+    func visibleText(from html: String) -> String {
         html
             .replacingOccurrences(
                 of: #"<script[\s\S]*?</script>"#,

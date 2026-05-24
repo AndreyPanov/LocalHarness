@@ -20,8 +20,8 @@ final class URLSessionCrawlClient: CrawlClient {
         return CrawledPage(
             url: request.url,
             finalURL: httpResponse.url ?? request.url,
-            title: HTMLTextExtractor.title(from: html),
-            text: HTMLTextExtractor.visibleText(from: html),
+            title: HTMLTextExtractor.shared.title(from: html),
+            text: HTMLTextExtractor.shared.visibleText(from: html),
             html: html
         )
     }

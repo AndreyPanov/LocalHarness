@@ -51,9 +51,9 @@ import Testing
     </html>
     """
 
-    #expect(HTMLTextExtractor.title(from: html) == "Monthly Metal")
+    #expect(HTMLTextExtractor.shared.title(from: html) == "Monthly Metal")
 
-    let text = HTMLTextExtractor.visibleText(from: html)
+    let text = HTMLTextExtractor.shared.visibleText(from: html)
     #expect(text.contains("May Releases"))
     #expect(text.contains("Death metal from Finland."))
     #expect(!text.contains("window.secret"))
