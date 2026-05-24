@@ -5,4 +5,5 @@ enum HarnessError: Error, Sendable {
     case llmRequestFailed
     case invalidAgentAction(String)
     case invalidMonth(String)
+    case crawlClientNotImplemented(String)
 }

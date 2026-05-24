@@ -1,4 +1,4 @@
 protocol LLMExtractionFallback: Sendable {
-    func extractBandMetadata(from page: CrawledPage) async throws -> BandMetadataDraft
+    func extractReleaseCandidate(from page: CrawledPage) async throws -> ReleaseCandidate
     func extractBandcampAvailability(from page: CrawledPage) async throws -> BandcampAvailabilityDraft
 }

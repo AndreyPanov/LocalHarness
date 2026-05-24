@@ -9,6 +9,10 @@ struct CrawlRequest: Sendable {
     let source: ResearchSource
 }
 
+struct ResearchSource: Hashable, Sendable {
+    let rawValue: String
+}
+
 struct CrawledPage: Sendable {
     let url: URL
     let finalURL: URL

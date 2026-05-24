@@ -1,5 +1,7 @@
+import Foundation
+
 protocol ReleaseDiscoverySource: Sendable {
-    func discover(month: ReleaseMonth, context: ResearchContext) async throws -> [ReleaseCandidate]
+    func discover(month: Date, context: ResearchContext) async throws -> [ReleaseCandidate]
 }
 
 protocol BandMetadataSource: Sendable {
