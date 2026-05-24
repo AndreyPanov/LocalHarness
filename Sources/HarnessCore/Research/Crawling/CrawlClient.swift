@@ -13,7 +13,7 @@ struct ResearchSource: Hashable, Sendable {
     let rawValue: String
 }
 
-struct CrawledPage: Sendable {
+struct CrawledPage: Sendable, Codable {
     let url: URL
     let finalURL: URL
     let title: String?

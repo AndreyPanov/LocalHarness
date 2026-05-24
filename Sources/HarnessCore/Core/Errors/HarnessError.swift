@@ -6,4 +6,6 @@ enum HarnessError: Error, Sendable {
     case invalidAgentAction(String)
     case invalidMonth(String)
     case crawlClientNotImplemented(String)
+    case invalidCrawlResponse(String)
+    case crawlRequestFailed(url: String, statusCode: Int)
 }

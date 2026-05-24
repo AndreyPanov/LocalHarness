@@ -1,5 +1,41 @@
+import Foundation
+
 final class CachedCrawlClient: CrawlClient {
+    private let wrapped: any CrawlClient
+    private let cacheDirectory: URL
+
+    init(wrapped: any CrawlClient, cacheDirectory: URL) {
+        self.wrapped = wrapped
+        self.cacheDirectory = cacheDirectory
+    }
+
     func fetch(_ request: CrawlRequest) async throws -> CrawledPage {
-        throw HarnessError.crawlClientNotImplemented("cached")
+        try FileManager.default.createDirectory(
+            at: cacheDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let cacheURL = cacheDirectory.appendingPathComponent(cacheKey(for: request) + ".json")
+
+        if FileManager.default.fileExists(atPath: cacheURL.path) {
+            let data = try Data(contentsOf: cacheURL)
+            return try JSONDecoder().decode(CrawledPage.self, from: data)
+        }
+
+        let page = try await wrapped.fetch(request)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let data = try encoder.encode(page)
+        try data.write(to: cacheURL, options: .atomic)
+
+        return page
+    }
+
+    private func cacheKey(for request: CrawlRequest) -> String {
+        Data(request.url.absoluteString.utf8)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }
