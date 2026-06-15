@@ -2,73 +2,68 @@ import Foundation
 import Testing
 @testable import HarnessCore
 
-@Test func metalArchivesDiscoveryFiltersByRequestedMonth() async throws {
-    let mayURL = URL(string: "https://example.com/may")!
-    let juneURL = URL(string: "https://example.com/june")!
-
-    let pages = [
-        mayURL: metalArchivesPage(
-            url: mayURL,
-            band: "May Band",
-            album: "May Album",
-            releaseDate: "May 10th, 2026"
-        ),
-        juneURL: metalArchivesPage(
-            url: juneURL,
-            band: "June Band",
-            album: "June Album",
-            releaseDate: "June 1st, 2026"
-        )
-    ]
+@Test func metalArchivesDiscoveryReturnsRealAlbumForRequestedMonth() async throws {
+    let page = try lampOfMurmuurPage()
 
     let context = ResearchContext(
-        month: MonthlyMetalDateFormatter.shared.parse("2026-05-01")!,
+        month: try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01")),
         runID: RunID(),
-        crawlClient: DictionaryCrawlClient(pages: pages),
+        crawlClient: DictionaryCrawlClient(pages: [page.url: page]),
         llmFallback: FailingLLMFallback(),
         runsDirectory: FileManager.default.temporaryDirectory,
         knowledgeDirectory: FileManager.default.temporaryDirectory
     )
 
-    let source = MetalArchivesAlbumDiscoverySource(albumURLs: [mayURL, juneURL])
+    let source = MetalArchivesAlbumDiscoverySource(albumURLs: [page.url])
     let candidates = try await source.discover(month: context.month, context: context)
 
     #expect(candidates.count == 1)
-    #expect(candidates.first?.bandName == "May Band")
-    #expect(candidates.first?.albumTitle == "May Album")
+    #expect(candidates.first?.bandName == "Lamp of Murmuur")
+    #expect(candidates.first?.albumTitle == "The Dreaming Prince in Ecstasy")
+    #expect(candidates.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
+    #expect(candidates.first?.sources.first?.name == "metal_archives")
+    #expect(candidates.first?.sources.first?.url == page.finalURL)
 }
 
-private func metalArchivesPage(
-    url: URL,
-    band: String,
-    album: String,
-    releaseDate: String
-) -> CrawledPage {
-    let html = """
-    <html>
-      <head>
-        <title>\(band) - \(album) - Encyclopaedia Metallum</title>
-      </head>
-      <body>
-        <h1 class="band_name"><a>\(band)</a></h1>
-        <h1 class="album_name"><a>\(album)</a></h1>
-        <dl>
-          <dt>Type:</dt>
-          <dd>Full-length</dd>
-          <dt>Release date:</dt>
-          <dd>\(releaseDate)</dd>
-        </dl>
-      </body>
-    </html>
-    """
+@Test func metalArchivesDiscoveryFiltersRealAlbumOutsideRequestedMonth() async throws {
+    let page = try lampOfMurmuurPage()
+
+    let context = ResearchContext(
+        month: try #require(MonthlyMetalDateFormatter.shared.parse("2025-12-01")),
+        runID: RunID(),
+        crawlClient: DictionaryCrawlClient(pages: [page.url: page]),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: FileManager.default.temporaryDirectory,
+        knowledgeDirectory: FileManager.default.temporaryDirectory
+    )
+
+    let source = MetalArchivesAlbumDiscoverySource(albumURLs: [page.url])
+    let candidates = try await source.discover(month: context.month, context: context)
+
+    #expect(candidates.isEmpty)
+}
+
+private func lampOfMurmuurPage() throws -> CrawledPage {
+    let url = URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!
+    let html = try lampOfMurmuurHTML()
 
     return CrawledPage(
         url: url,
         finalURL: url,
-        title: "\(band) - \(album) - Encyclopaedia Metallum",
+        title: HTMLTextExtractor.shared.title(from: html),
         text: HTMLTextExtractor.shared.visibleText(from: html),
         html: html
     )
+}
+
+private func lampOfMurmuurHTML() throws -> String {
+    let fixtureURL = try #require(Bundle.module.url(
+        forResource: "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives",
+        withExtension: "html",
+        subdirectory: "Fixtures"
+    ))
+
+    return try String(contentsOf: fixtureURL, encoding: .utf8)
 }
 
 private struct DictionaryCrawlClient: CrawlClient {
