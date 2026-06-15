@@ -54,7 +54,7 @@ struct MetalArchivesAlbumPageExtractor: Sendable {
     private func extractBandName(from html: String) -> String? {
         if let value = firstMatch(
             in: html,
-            pattern: #"<h1[^>]*class="band_name"[^>]*>\s*<a[^>]*>(.*?)</a>\s*</h1>"#
+            pattern: #"<h[1-6][^>]*class\s*=\s*["'][^"']*\bband_name\b[^"']*["'][^>]*>\s*<a[^>]*>(.*?)</a>\s*</h[1-6]>"#
         ) {
             return cleanHTML(value)
         }
@@ -72,7 +72,7 @@ struct MetalArchivesAlbumPageExtractor: Sendable {
     private func extractAlbumTitle(from html: String, fallbackTitle: String) -> String? {
         if let value = firstMatch(
             in: html,
-            pattern: #"<h1[^>]*class="album_name"[^>]*>\s*<a[^>]*>(.*?)</a>\s*</h1>"#
+            pattern: #"<h[1-6][^>]*class\s*=\s*["'][^"']*\balbum_name\b[^"']*["'][^>]*>\s*<a[^>]*>(.*?)</a>\s*</h[1-6]>"#
         ) {
             return cleanHTML(value)
         }
@@ -135,7 +135,7 @@ struct MetalArchivesAlbumPageExtractor: Sendable {
         let escaped = NSRegularExpression.escapedPattern(for: label)
 
         let patterns = [
-            #"<dt>\s*\#(escaped):?\s*</dt>\s*<dd[^>]*>(.*?)</dd>"#,
+            #"<dt[^>]*>\s*\#(escaped):?\s*</dt>\s*<dd[^>]*>(.*?)</dd>"#,
             #"<span[^>]*>\s*\#(escaped):?\s*</span>\s*([^<]+)"#,
             #"\#(escaped):\s*</[^>]+>\s*<[^>]+>(.*?)</"#
         ]
