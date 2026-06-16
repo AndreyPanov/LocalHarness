@@ -2,6 +2,64 @@ import Foundation
 import Testing
 @testable import HarnessCore
 
+@Test func metalArchivesAdvancedSearchExtractorFindsAlbumURLs() throws {
+    let searchJSON = try fixtureString(
+        named: "metal-archives-advanced-album-search-2025-11",
+        fileExtension: "json"
+    )
+    let response = try JSONDecoder().decode(
+        MetalArchivesAdvancedAlbumSearchResponse.self,
+        from: Data(searchJSON.utf8)
+    )
+
+    let urls = MetalArchivesAdvancedAlbumSearchExtractor().albumURLs(from: response)
+
+    #expect(urls == [
+        URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!
+    ])
+}
+
+@Test func metalArchivesMonthlyDiscoveryFindsAlbumFromAdvancedSearch() async throws {
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
+    let searchSource = MetalArchivesAdvancedAlbumSearchSource()
+    let searchURL = searchSource.searchURL(for: month)
+    let albumPage = try lampOfMurmuurPage()
+    let searchJSON = try fixtureString(
+        named: "metal-archives-advanced-album-search-2025-11",
+        fileExtension: "json"
+    )
+
+    let searchPage = CrawledPage(
+        url: searchURL,
+        finalURL: searchURL,
+        title: nil,
+        text: searchJSON,
+        html: searchJSON
+    )
+
+    let context = ResearchContext(
+        month: month,
+        runID: RunID(),
+        crawlClient: DictionaryCrawlClient(pages: [
+            searchURL: searchPage,
+            albumPage.url: albumPage
+        ]),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: FileManager.default.temporaryDirectory,
+        knowledgeDirectory: FileManager.default.temporaryDirectory
+    )
+
+    let source = MetalArchivesMonthlyReleaseDiscoverySource(searchSource: searchSource)
+    let candidates = try await source.discover(month: month, context: context)
+
+    #expect(candidates.count == 1)
+    #expect(candidates.first?.bandName == "Lamp of Murmuur")
+    #expect(candidates.first?.albumTitle == "The Dreaming Prince in Ecstasy")
+    #expect(candidates.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
+    #expect(candidates.first?.sources.first?.name == "metal_archives")
+    #expect(candidates.first?.sources.first?.url == albumPage.finalURL)
+}
+
 @Test func metalArchivesDiscoveryReturnsRealAlbumForRequestedMonth() async throws {
     let page = try lampOfMurmuurPage()
 
@@ -57,9 +115,16 @@ private func lampOfMurmuurPage() throws -> CrawledPage {
 }
 
 private func lampOfMurmuurHTML() throws -> String {
+    try fixtureString(
+        named: "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives",
+        fileExtension: "html"
+    )
+}
+
+private func fixtureString(named name: String, fileExtension: String) throws -> String {
     let fixtureURL = try #require(Bundle.module.url(
-        forResource: "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives",
-        withExtension: "html",
+        forResource: name,
+        withExtension: fileExtension,
         subdirectory: "Fixtures"
     ))
 
