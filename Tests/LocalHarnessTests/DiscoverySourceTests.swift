@@ -19,6 +19,38 @@ import Testing
     ])
 }
 
+@Test func metalArchivesAdvancedSearchSourcePaginatesAndDeduplicatesAlbumURLs() async throws {
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
+    let searchSource = MetalArchivesAdvancedAlbumSearchSource(pageSize: 2)
+    let firstSearchURL = searchSource.searchURL(for: month, start: 0, pageSize: 2)
+    let secondSearchURL = searchSource.searchURL(for: month, start: 2, pageSize: 2)
+
+    let context = ResearchContext(
+        month: month,
+        runID: RunID(),
+        crawlClient: DictionaryCrawlClient(pages: [
+            firstSearchURL: try jsonPage(
+                url: firstSearchURL,
+                fixtureName: "metal-archives-advanced-album-search-2025-11-page-1"
+            ),
+            secondSearchURL: try jsonPage(
+                url: secondSearchURL,
+                fixtureName: "metal-archives-advanced-album-search-2025-11-page-2"
+            )
+        ]),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: FileManager.default.temporaryDirectory,
+        knowledgeDirectory: FileManager.default.temporaryDirectory
+    )
+
+    let urls = try await searchSource.albumURLs(for: month, context: context)
+
+    #expect(urls == [
+        URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!,
+        URL(string: "https://www.metal-archives.com/albums/Abbashaitan/Sorceritual_%26_Rites_of_the_Unlight/1393271")!
+    ])
+}
+
 @Test func metalArchivesMonthlyDiscoveryFindsAlbumFromAdvancedSearch() async throws {
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
     let searchSource = MetalArchivesAdvancedAlbumSearchSource()
@@ -129,6 +161,18 @@ private func fixtureString(named name: String, fileExtension: String) throws -> 
     ))
 
     return try String(contentsOf: fixtureURL, encoding: .utf8)
+}
+
+private func jsonPage(url: URL, fixtureName: String) throws -> CrawledPage {
+    let json = try fixtureString(named: fixtureName, fileExtension: "json")
+
+    return CrawledPage(
+        url: url,
+        finalURL: url,
+        title: nil,
+        text: json,
+        html: json
+    )
 }
 
 private struct DictionaryCrawlClient: CrawlClient {
