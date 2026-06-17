@@ -3,37 +3,49 @@ import Foundation
 struct MetalArchivesAdvancedAlbumSearchSource: Sendable {
     private let extractor: MetalArchivesAdvancedAlbumSearchExtractor
     private let pageSize: Int
+    private let includedReleaseTypes: Set<String>
 
     init(
         extractor: MetalArchivesAdvancedAlbumSearchExtractor = MetalArchivesAdvancedAlbumSearchExtractor(),
-        pageSize: Int = 200
+        pageSize: Int = 200,
+        includedReleaseTypes: Set<String> = ["full-length", "ep"]
     ) {
         self.extractor = extractor
         self.pageSize = pageSize
+        self.includedReleaseTypes = includedReleaseTypes
     }
 
-    func albumURLs(for month: Date, context: ResearchContext) async throws -> [URL] {
-        var urls: [URL] = []
+    func albums(
+        for month: Date,
+        context: ResearchContext
+    ) async throws -> [MetalArchivesAdvancedAlbumSearchResult] {
+        var albums: [MetalArchivesAdvancedAlbumSearchResult] = []
         var seen = Set<URL>()
         var start = 0
 
         while true {
             let response = try await searchPage(for: month, start: start, context: context)
-            let pageURLs = extractor.albumURLs(from: response)
+            let pageAlbums = extractor.albums(from: response)
+            let includedPageAlbums = pageAlbums.filter(isIncludedReleaseType)
 
-            for url in pageURLs where !seen.contains(url) {
-                seen.insert(url)
-                urls.append(url)
+            for album in includedPageAlbums where !seen.contains(album.albumURL) {
+                seen.insert(album.albumURL)
+                albums.append(album)
             }
 
             start += pageSize
 
-            if start >= response.iTotalDisplayRecords || pageURLs.isEmpty {
+            if start >= response.iTotalDisplayRecords || pageAlbums.isEmpty {
                 break
             }
         }
 
-        return urls
+        return albums
+    }
+
+    func albumURLs(for month: Date, context: ResearchContext) async throws -> [URL] {
+        let albums = try await albums(for: month, context: context)
+        return albums.map(\.albumURL)
     }
 
     private func searchPage(
@@ -75,10 +87,16 @@ struct MetalArchivesAdvancedAlbumSearchSource: Sendable {
             URLQueryItem(name: "releaseMonthFrom", value: String(format: "%02d", monthNumber)),
             URLQueryItem(name: "releaseYearTo", value: "\(year)"),
             URLQueryItem(name: "releaseMonthTo", value: String(format: "%02d", monthNumber)),
+            URLQueryItem(name: "releaseType[]", value: "1"),
+            URLQueryItem(name: "releaseType[]", value: "5"),
             URLQueryItem(name: "iDisplayStart", value: "\(start)"),
             URLQueryItem(name: "iDisplayLength", value: "\(pageSize)")
         ]
 
         return urlComponents.url!
+    }
+
+    private func isIncludedReleaseType(_ album: MetalArchivesAdvancedAlbumSearchResult) -> Bool {
+        includedReleaseTypes.contains(album.releaseType.lowercased())
     }
 }

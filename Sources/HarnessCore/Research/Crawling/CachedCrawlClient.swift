@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 final class CachedCrawlClient: CrawlClient {
     private let wrapped: any CrawlClient
@@ -34,7 +35,8 @@ final class CachedCrawlClient: CrawlClient {
     }
 
     private func cacheKey(for request: CrawlRequest) -> String {
-        Data(request.url.absoluteString.utf8)
+        let value = "\(request.source.rawValue)\n\(request.url.absoluteString)"
+        return SHA256.hash(data: Data(value.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
     }

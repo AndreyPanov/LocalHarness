@@ -6,6 +6,6 @@ struct HarnessCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "harness",
         abstract: "Local Harness CLI",
-        subcommands: [ RunCommand.self ]
+        subcommands: [ RunCommand.self, ScoutMetalCommand.self ]
     )
 }

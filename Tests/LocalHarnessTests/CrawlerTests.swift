@@ -33,6 +33,36 @@ import Testing
     #expect(await wrapped.fetchCount() == 1)
 }
 
+@Test func cachedCrawlClientUsesShortFileNamesForLongSearchURLs() async throws {
+    let cacheDirectory = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+
+    let url = URL(string: "https://www.metal-archives.com/search/ajax-advanced/searching/albums/?releaseYearFrom=2026&releaseMonthFrom=06&releaseYearTo=2026&releaseMonthTo=06&iDisplayStart=0&iDisplayLength=200")!
+    let page = CrawledPage(
+        url: url,
+        finalURL: url,
+        title: nil,
+        text: #"{"aaData":[]}"#,
+        html: #"{"aaData":[]}"#
+    )
+    let wrapped = CountingCrawlClient(page: page)
+    let client = CachedCrawlClient(wrapped: wrapped, cacheDirectory: cacheDirectory)
+    let request = CrawlRequest(
+        url: url,
+        source: ResearchSource(rawValue: "metal_archives_advanced_album_search")
+    )
+
+    _ = try await client.fetch(request)
+    _ = try await client.fetch(request)
+
+    let cacheFileNames = try FileManager.default.contentsOfDirectory(atPath: cacheDirectory.path)
+    let cacheFileName = try #require(cacheFileNames.first)
+
+    #expect(cacheFileNames.count == 1)
+    #expect(cacheFileName.count < 255)
+    #expect(await wrapped.fetchCount() == 1)
+}
+
 @Test func htmlTextExtractorReturnsTitleAndVisibleMetalArchivesText() throws {
     let html = try lampOfMurmuurHTML()
 

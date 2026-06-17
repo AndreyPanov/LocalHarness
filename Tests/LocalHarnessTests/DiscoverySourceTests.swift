@@ -13,17 +13,26 @@ import Testing
     )
 
     let urls = MetalArchivesAdvancedAlbumSearchExtractor().albumURLs(from: response)
+    let albums = MetalArchivesAdvancedAlbumSearchExtractor().albums(from: response)
 
     #expect(urls == [
         URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!
     ])
+    #expect(albums.first?.bandName == "Lamp of Murmuur")
+    #expect(albums.first?.albumTitle == "The Dreaming Prince in Ecstasy")
+    #expect(albums.first?.releaseType == "Full-length")
+    #expect(albums.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
 }
 
-@Test func metalArchivesAdvancedSearchSourcePaginatesAndDeduplicatesAlbumURLs() async throws {
+@Test func metalArchivesAdvancedSearchSourcePaginatesFiltersAndDeduplicatesAlbumURLs() async throws {
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
     let searchSource = MetalArchivesAdvancedAlbumSearchSource(pageSize: 2)
     let firstSearchURL = searchSource.searchURL(for: month, start: 0, pageSize: 2)
     let secondSearchURL = searchSource.searchURL(for: month, start: 2, pageSize: 2)
+    let firstSearchQueryItems = try #require(URLComponents(
+        url: firstSearchURL,
+        resolvingAgainstBaseURL: false
+    )?.queryItems)
 
     let context = ResearchContext(
         month: month,
@@ -45,9 +54,10 @@ import Testing
 
     let urls = try await searchSource.albumURLs(for: month, context: context)
 
+    #expect(firstSearchQueryItems.filter { $0.name == "releaseType[]" }.map(\.value) == ["1", "5"])
     #expect(urls == [
         URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!,
-        URL(string: "https://www.metal-archives.com/albums/Abbashaitan/Sorceritual_%26_Rites_of_the_Unlight/1393271")!
+        URL(string: "https://www.metal-archives.com/albums/Dzyan/Dzyan/1386184")!
     ])
 }
 
@@ -90,6 +100,71 @@ import Testing
     #expect(candidates.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
     #expect(candidates.first?.sources.first?.name == "metal_archives")
     #expect(candidates.first?.sources.first?.url == albumPage.finalURL)
+}
+
+@Test func monthlyMetalScoutDiscoversAlbumsThroughMetalArchivesSearch() async throws {
+    let temporaryDirectory = try makeTemporaryDirectory()
+    let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
+    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
+    let searchURL = MetalArchivesAdvancedAlbumSearchSource().searchURL(for: month)
+    let albumPage = try lampOfMurmuurPage()
+    let searchPage = try jsonPage(
+        url: searchURL,
+        fixtureName: "metal-archives-advanced-album-search-2025-11"
+    )
+    let pages = [
+        searchURL: searchPage,
+        albumPage.url: albumPage
+    ]
+
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    let scout = MonthlyMetalScout(
+        runsDirectory: runsDirectory,
+        knowledgeDirectory: knowledgeDirectory,
+        runIDProvider: { RunID("test-monthly-metal-scout") },
+        crawlClientFactory: { _ in DictionaryCrawlClient(pages: pages) }
+    )
+
+    let result = try await scout.discover(month: "2025-11")
+
+    #expect(result.runID == RunID("test-monthly-metal-scout"))
+    #expect(FileManager.default.fileExists(atPath: result.runDirectory.path))
+    #expect(result.releases.count == 1)
+    #expect(result.releases.first?.bandName == "Lamp of Murmuur")
+    #expect(result.releases.first?.albumTitle == "The Dreaming Prince in Ecstasy")
+}
+
+@Test func monthlyMetalScoutListsAlbumsWithoutFetchingAlbumPages() async throws {
+    let temporaryDirectory = try makeTemporaryDirectory()
+    let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
+    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
+    let searchURL = MetalArchivesAdvancedAlbumSearchSource().searchURL(for: month)
+    let searchPage = try jsonPage(
+        url: searchURL,
+        fixtureName: "metal-archives-advanced-album-search-2025-11"
+    )
+
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    let scout = MonthlyMetalScout(
+        runsDirectory: runsDirectory,
+        knowledgeDirectory: knowledgeDirectory,
+        runIDProvider: { RunID("test-monthly-metal-list") },
+        crawlClientFactory: { _ in DictionaryCrawlClient(pages: [searchURL: searchPage]) }
+    )
+
+    let result = try await scout.listAlbums(month: "2025-11")
+
+    #expect(result.runID == RunID("test-monthly-metal-list"))
+    #expect(result.albums.count == 1)
+    #expect(result.albums.first?.bandName == "Lamp of Murmuur")
+    #expect(result.albums.first?.albumTitle == "The Dreaming Prince in Ecstasy")
+    #expect(result.albums.first?.releaseType == "Full-length")
+    #expect(result.albums.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
+    #expect(result.albums.first?.metalArchivesURL == URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!)
 }
 
 @Test func metalArchivesDiscoveryReturnsRealAlbumForRequestedMonth() async throws {
@@ -173,6 +248,15 @@ private func jsonPage(url: URL, fixtureName: String) throws -> CrawledPage {
         text: json,
         html: json
     )
+}
+
+private func makeTemporaryDirectory() throws -> URL {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("local-harness-tests", isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
 }
 
 private struct DictionaryCrawlClient: CrawlClient {
