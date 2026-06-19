@@ -13,34 +13,67 @@ struct ScoutMetalCommand: AsyncParsableCommand {
 
     func run() async throws {
         let scout = MonthlyMetalScout()
-        let result = try await scout.listAlbums(month: month)
+        let result = try await scout.listCandidates(month: month)
 
-        print("Metal Archives releases for \(month)")
-        print("Found: \(result.albums.count)")
+        print("Monthly metal candidates for \(month)")
+        print("Found: \(result.candidates.count)")
         print("")
 
-        if result.albums.isEmpty {
-            print("No releases found.")
+        if result.candidates.isEmpty {
+            print("No candidates found.")
         } else {
-            for album in result.albums {
-                print("\(album.bandName) - \(album.albumTitle)")
-                print("  Type: \(album.releaseType)")
+            for candidate in result.candidates {
+                print("\(candidate.bandName) - \(candidate.albumTitle)")
+                print("  Type: \(candidate.releaseType ?? "unknown")")
 
-                if let releaseDate = album.releaseDate {
+                if let labelName = candidate.labelName {
+                    print("  Label: \(labelName)")
+                }
+
+                if let releaseDate = candidate.releaseDate {
                     print("  Release date: \(Self.dateFormatter.string(from: releaseDate))")
-                } else if let releaseDateText = album.releaseDateText {
+                } else if let releaseDateText = candidate.releaseDateText {
                     print("  Release date: \(releaseDateText)")
                 } else {
                     print("  Release date: unknown")
                 }
 
-                print("  Metal Archives: \(album.metalArchivesURL.absoluteString)")
+                if let metalArchivesURL = candidate.metalArchivesURL {
+                    print("  Metal Archives: \(metalArchivesURL.absoluteString)")
+                } else {
+                    print("  Metal Archives: not matched")
+                }
+
+                print("  Sources:")
+
+                for source in candidate.sources {
+                    var sourceLine = "    - \(source.name) (\(source.kind))"
+
+                    if let rank = source.rank {
+                        sourceLine += " #\(rank)"
+                    }
+
+                    print(sourceLine)
+
+                    if let sourceURL = source.sourceURL {
+                        print("      Source: \(sourceURL.absoluteString)")
+                    }
+
+                    if let itemURL = source.itemURL {
+                        print("      Item: \(itemURL.absoluteString)")
+                    }
+
+                    if let note = source.note {
+                        print("      Note: \(note)")
+                    }
+                }
             }
         }
 
         print("")
         print("Run ID: \(result.runID)")
         print("Run artifacts: \(result.runDirectory.path)")
+        print("Candidate artifact: \(result.candidateArtifactURL.path)")
     }
 
     private static let dateFormatter: DateFormatter = {
