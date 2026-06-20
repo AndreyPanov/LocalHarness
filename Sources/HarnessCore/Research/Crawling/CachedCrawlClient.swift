@@ -35,7 +35,12 @@ final class CachedCrawlClient: CrawlClient {
     }
 
     private func cacheKey(for request: CrawlRequest) -> String {
-        let value = "\(request.source.rawValue)\n\(request.url.absoluteString)"
+        let headers = request.headers
+            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+            .map { "\($0.key): \($0.value)" }
+            .joined(separator: "\n")
+        let value = "\(request.source.rawValue)\n\(request.url.absoluteString)\n\(headers)"
+
         return SHA256.hash(data: Data(value.utf8))
             .map { String(format: "%02x", $0) }
             .joined()

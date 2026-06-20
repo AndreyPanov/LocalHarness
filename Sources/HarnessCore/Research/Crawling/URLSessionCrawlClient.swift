@@ -2,7 +2,13 @@ import Foundation
 
 final class URLSessionCrawlClient: CrawlClient {
     func fetch(_ request: CrawlRequest) async throws -> CrawledPage {
-        let (data, response) = try await URLSession.shared.data(from: request.url)
+        var urlRequest = URLRequest(url: request.url)
+
+        for (field, value) in request.headers {
+            urlRequest.setValue(value, forHTTPHeaderField: field)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw HarnessError.invalidCrawlResponse(request.url.absoluteString)

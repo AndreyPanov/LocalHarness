@@ -74,6 +74,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
         print("Run ID: \(result.runID)")
         print("Run artifacts: \(result.runDirectory.path)")
         print("Candidate artifact: \(result.candidateArtifactURL.path)")
+        print("Editorial source documents: \(result.editorialDocumentsArtifactURL.path)")
     }
 
     private static let dateFormatter: DateFormatter = {

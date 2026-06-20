@@ -52,13 +52,19 @@ public struct MonthlyMetalScout: Sendable {
             knowledgeDirectory: knowledgeDirectory
         )
 
-        let candidatePoolBuilder = MonthlyMetalCandidatePoolBuilder(
-            editorialSeedSource: EditorialReleaseSeedSource(knowledgeDirectory: knowledgeDirectory)
-        )
+        let candidatePoolBuilder = MonthlyMetalCandidatePoolBuilder()
         let candidates = try await candidatePoolBuilder.candidates(for: month, context: context)
+        let editorialDocuments = try await EditorialSourceDocumentSource(
+            knowledgeDirectory: knowledgeDirectory
+        ).documents(for: month, context: context)
         let candidateArtifactURL = try writeCandidateArtifact(
             month: rawMonth,
             candidates: candidates,
+            runDirectory: runDirectory
+        )
+        let editorialDocumentsArtifactURL = try writeEditorialDocumentsArtifact(
+            month: rawMonth,
+            documents: editorialDocuments,
             runDirectory: runDirectory
         )
 
@@ -66,6 +72,7 @@ public struct MonthlyMetalScout: Sendable {
             runID: runID,
             runDirectory: runDirectory,
             candidateArtifactURL: candidateArtifactURL,
+            editorialDocumentsArtifactURL: editorialDocumentsArtifactURL,
             candidates: candidates
         )
     }
@@ -107,11 +114,37 @@ public struct MonthlyMetalScout: Sendable {
         try encoder.encode(artifact).write(to: artifactURL)
         return artifactURL
     }
+
+    private func writeEditorialDocumentsArtifact(
+        month: String,
+        documents: [MonthlyMetalEditorialSourceDocument],
+        runDirectory: URL
+    ) throws -> URL {
+        let artifactURL = runDirectory.appendingPathComponent(
+            "editorial-source-documents.json",
+            isDirectory: false
+        )
+        let artifact = MonthlyMetalEditorialDocumentsArtifact(
+            month: month,
+            documents: documents
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+
+        try encoder.encode(artifact).write(to: artifactURL)
+        return artifactURL
+    }
 }
 
 private struct MonthlyMetalCandidateArtifact: Encodable {
     let month: String
     let candidates: [MonthlyMetalCandidate]
+}
+
+private struct MonthlyMetalEditorialDocumentsArtifact: Encodable {
+    let month: String
+    let documents: [MonthlyMetalEditorialSourceDocument]
 }
 
 private struct UnavailableLLMExtractionFallback: LLMExtractionFallback {

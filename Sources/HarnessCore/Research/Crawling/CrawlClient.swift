@@ -7,6 +7,13 @@ protocol CrawlClient: Sendable {
 struct CrawlRequest: Sendable {
     let url: URL
     let source: ResearchSource
+    let headers: [String: String]
+
+    init(url: URL, source: ResearchSource, headers: [String: String] = [:]) {
+        self.url = url
+        self.source = source
+        self.headers = headers
+    }
 }
 
 struct ResearchSource: Hashable, Sendable {

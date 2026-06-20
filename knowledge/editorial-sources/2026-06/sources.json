@@ -1,10 +1,16 @@
 {
   "sources": [
     {
-      "name": "BangerTV Metal Monthly June 2026",
-      "kind": "youtube_description",
-      "url": "https://www.youtube.com/watch?v=Punc3i5Su30",
-      "file": "bangertv-metal-monthly-june-2026.txt"
+      "name": "BangerTV",
+      "kind": "youtube_channel",
+      "url": "https://www.youtube.com/@BangerTV",
+      "channelID": "UCeUMZ4t3ezEJFhXHJg9rshQ"
+    },
+    {
+      "name": "InfidelAmsterdam Instagram",
+      "kind": "instagram_profile",
+      "url": "https://www.instagram.com/infidelamsterdam/",
+      "username": "infidelamsterdam"
     }
   ]
 }

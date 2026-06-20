@@ -61,40 +61,147 @@ import Testing
     ])
 }
 
-@Test func editorialReleaseParserExtractsBangerTVDescriptionBlocks() throws {
-    let description = try fixtureString(
-        named: "bangertv-metal-monthly-june-2026",
-        fileExtension: "txt"
-    )
-    let descriptor = EditorialReleaseSourceDescriptor(
-        name: "BangerTV Metal Monthly June 2026",
-        kind: "youtube_description",
-        sourceURL: URL(string: "https://www.youtube.com/watch?v=Punc3i5Su30")!,
-        file: "bangertv-metal-monthly-june-2026.txt"
-    )
+@Test func bangerTVRSSParserFindsMonthlyAndReviewVideos() throws {
+    let xml = """
+    <feed>
+      <entry>
+        <yt:videoId>DV-Z4kzZMfM</yt:videoId>
+        <title>KHEMMIS  Khemmis | BangerTV Metal Album Reviews</title>
+        <published>2026-06-19T19:22:02+00:00</published>
+      </entry>
+      <entry>
+        <yt:videoId>Punc3i5Su30</yt:videoId>
+        <title>METAL MONTHLY JUNE 2026 | Astriferous, Speedslut, Inherits the Void, Nuclear Tomb, Iron Kobra</title>
+        <published>2026-06-03T15:19:20+00:00</published>
+      </entry>
+    </feed>
+    """
 
-    let seeds = EditorialReleaseDescriptionParser().seeds(
-        from: description,
-        descriptor: descriptor
-    )
-    let first = try #require(seeds.first)
-    let last = try #require(seeds.last)
+    let entries = YouTubeRSSFeedParser().entries(from: xml)
 
-    #expect(seeds.count == 5)
-    #expect(first.bandName == "Astriferous")
-    #expect(first.albumTitle == "Atavistic Unraveling")
-    #expect(first.labelName == "Me Saco un Ojo/Pulverised")
-    #expect(first.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-26")
-    #expect(first.source.name == "BangerTV Metal Monthly June 2026")
-    #expect(first.source.kind == "youtube_description")
-    #expect(first.source.rank == 1)
-    #expect(first.source.sourceURL == URL(string: "https://www.youtube.com/watch?v=Punc3i5Su30")!)
-    #expect(first.source.itemURL == URL(string: "https://mesacounojo.bandcamp.com/album/atavistic-unraveling")!)
-    #expect(last.bandName == "Iron Kobra")
-    #expect(last.albumTitle == "Eternal Dagger")
+    #expect(entries.map(\.videoID) == ["DV-Z4kzZMfM", "Punc3i5Su30"])
+    #expect(entries.first?.title == "KHEMMIS  Khemmis | BangerTV Metal Album Reviews")
+    #expect(entries.first.map { MonthlyMetalDateFormatter.shared.format($0.publishedAt) } == "2026-06-19")
 }
 
-@Test func monthlyMetalScoutBuildsCandidatePoolWithEditorialSources() async throws {
+@Test func bangerTVDocumentSourceKeepsFullVideoDescription() async throws {
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
+    let feedURL = URL(string: "https://www.youtube.com/feeds/videos.xml?channel_id=test-channel")!
+    let videoURL = URL(string: "https://www.youtube.com/watch?v=DV-Z4kzZMfM")!
+    let feedXML = """
+    <feed>
+      <entry>
+        <yt:videoId>DV-Z4kzZMfM</yt:videoId>
+        <title>KHEMMIS  Khemmis | BangerTV Metal Album Reviews</title>
+        <published>2026-06-19T19:22:02+00:00</published>
+      </entry>
+      <entry>
+        <yt:videoId>short-video</yt:videoId>
+        <title>Who does not love a mosh pit?</title>
+        <published>2026-06-12T18:50:29+00:00</published>
+      </entry>
+    </feed>
+    """
+    let videoHTML = #"""
+    <script>
+    var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"Blayne reviews the new self titled album by doom legends Khemmis\n\nShout Outs\nMork - Monolitt - June 19th, 2026 - Peaceville Records"}};
+    </script>
+    """#
+    let context = ResearchContext(
+        month: month,
+        runID: RunID(),
+        crawlClient: DictionaryCrawlClient(pages: [
+            feedURL: CrawledPage(url: feedURL, finalURL: feedURL, title: nil, text: feedXML, html: feedXML),
+            videoURL: CrawledPage(url: videoURL, finalURL: videoURL, title: nil, text: videoHTML, html: videoHTML)
+        ]),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: FileManager.default.temporaryDirectory,
+        knowledgeDirectory: FileManager.default.temporaryDirectory
+    )
+    let descriptor = EditorialSourceDescriptor(
+        name: "BangerTV",
+        kind: "youtube_channel",
+        sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
+        channelID: "test-channel"
+    )
+
+    let documents = try await BangerTVEditorialDocumentSource().documents(
+        for: month,
+        descriptor: descriptor,
+        context: context
+    )
+    let document = try #require(documents.first)
+
+    #expect(documents.count == 1)
+    #expect(document.sourceName == "BangerTV")
+    #expect(document.sourceKind == "youtube_album_review")
+    #expect(document.sourceURL == URL(string: "https://www.youtube.com/@BangerTV")!)
+    #expect(document.itemURL == videoURL)
+    #expect(document.title == "KHEMMIS  Khemmis | BangerTV Metal Album Reviews")
+    #expect(document.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-19")
+    #expect(document.text.contains("Mork - Monolitt - June 19th, 2026 - Peaceville Records"))
+}
+
+@Test func instagramDocumentSourceKeepsFullPostCaptions() async throws {
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
+    let feedURL = URL(string: "https://www.instagram.com/api/v1/feed/user/infidelamsterdam/username/?count=50")!
+    let json = """
+    {
+      "items": [
+        {
+          "code": "DZK_hBVsGaZ",
+          "taken_at": 1780574400,
+          "caption": {
+            "text": "New arrivals!\\n\\nWalg: Walg l\\n( 12” green vinyl, full length, reissue by Zwaertgevegt )\\nWalg: lV\\n( Cd, full length, independent release )\\n\\nCountry: The Netherlands\\nStyle: Black Metal"
+          }
+        },
+        {
+          "code": "MAYPOST",
+          "taken_at": 1779883200,
+          "caption": {
+            "text": "Older caption outside the requested month"
+          }
+        }
+      ],
+      "more_available": false,
+      "next_max_id": null
+    }
+    """
+    let context = ResearchContext(
+        month: month,
+        runID: RunID(),
+        crawlClient: DictionaryCrawlClient(pages: [
+            feedURL: CrawledPage(url: feedURL, finalURL: feedURL, title: nil, text: json, html: json)
+        ]),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: FileManager.default.temporaryDirectory,
+        knowledgeDirectory: FileManager.default.temporaryDirectory
+    )
+    let descriptor = EditorialSourceDescriptor(
+        name: "InfidelAmsterdam Instagram",
+        kind: "instagram_profile",
+        sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,
+        username: "infidelamsterdam"
+    )
+
+    let documents = try await InstagramProfileEditorialDocumentSource().documents(
+        for: month,
+        descriptor: descriptor,
+        context: context
+    )
+    let document = try #require(documents.first)
+
+    #expect(documents.count == 1)
+    #expect(document.sourceName == "InfidelAmsterdam Instagram")
+    #expect(document.sourceKind == "instagram_post")
+    #expect(document.itemURL == URL(string: "https://www.instagram.com/p/DZK_hBVsGaZ/")!)
+    #expect(document.title == "Instagram post DZK_hBVsGaZ")
+    #expect(document.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-04")
+    #expect(document.text.contains("New arrivals!"))
+    #expect(document.text.contains("Walg: Walg l"))
+}
+
+@Test func monthlyMetalScoutWritesCatalogCandidatesAndEditorialDocumentsSeparately() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
@@ -141,27 +248,23 @@ import Testing
     let lamp = try #require(result.candidates.first {
         $0.bandName == "Lamp of Murmuur"
     })
-    let editorialOnly = try #require(result.candidates.first {
-        $0.bandName == "Editorial Only"
-    })
+    let editorialDocumentsJSON = try String(
+        contentsOf: result.editorialDocumentsArtifactURL,
+        encoding: .utf8
+    )
 
     #expect(result.runID == RunID("test-monthly-metal-scout"))
     #expect(FileManager.default.fileExists(atPath: result.runDirectory.path))
     #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
-    #expect(result.candidates.count == 2)
+    #expect(FileManager.default.fileExists(atPath: result.editorialDocumentsArtifactURL.path))
+    #expect(result.candidates.count == 1)
     #expect(lamp.albumTitle == "The Dreaming Prince in Ecstasy")
     #expect(lamp.releaseType == "Full-length")
     #expect(lamp.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
     #expect(lamp.metalArchivesURL == URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!)
-    #expect(lamp.sources.map(\.name) == [
-        "Metal Archives monthly search",
-        "Example monthly top albums"
-    ])
-    #expect(lamp.sources.last?.itemURL == URL(string: "https://example.com/lamp-review")!)
-    #expect(editorialOnly.albumTitle == "Hidden Demo")
-    #expect(editorialOnly.releaseType == nil)
-    #expect(editorialOnly.metalArchivesURL == nil)
-    #expect(editorialOnly.sources.first?.rank == 2)
+    #expect(lamp.sources.map(\.name) == ["Metal Archives monthly search"])
+    #expect(editorialDocumentsJSON.contains(#""sourceName" : "Example monthly top albums""#))
+    #expect(editorialDocumentsJSON.contains("Editorial Only - Hidden Demo"))
 }
 
 @Test func monthlyMetalScoutListsCatalogCandidatesWithoutFetchingAlbumPages() async throws {
@@ -188,6 +291,7 @@ import Testing
 
     #expect(result.runID == RunID("test-monthly-metal-list"))
     #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
+    #expect(FileManager.default.fileExists(atPath: result.editorialDocumentsArtifactURL.path))
     #expect(result.candidates.count == 1)
     #expect(result.candidates.first?.bandName == "Lamp of Murmuur")
     #expect(result.candidates.first?.albumTitle == "The Dreaming Prince in Ecstasy")

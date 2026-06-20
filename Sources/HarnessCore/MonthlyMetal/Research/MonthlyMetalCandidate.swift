@@ -4,17 +4,20 @@ public struct MonthlyMetalCandidateListResult: Sendable {
     public let runID: RunID
     public let runDirectory: URL
     public let candidateArtifactURL: URL
+    public let editorialDocumentsArtifactURL: URL
     public let candidates: [MonthlyMetalCandidate]
 
     public init(
         runID: RunID,
         runDirectory: URL,
         candidateArtifactURL: URL,
+        editorialDocumentsArtifactURL: URL,
         candidates: [MonthlyMetalCandidate]
     ) {
         self.runID = runID
         self.runDirectory = runDirectory
         self.candidateArtifactURL = candidateArtifactURL
+        self.editorialDocumentsArtifactURL = editorialDocumentsArtifactURL
         self.candidates = candidates
     }
 }
