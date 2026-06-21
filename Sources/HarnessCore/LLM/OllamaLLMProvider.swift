@@ -101,9 +101,17 @@ final class OllamaLLMProvider: LLMProvider {
         urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
         
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        
-        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
-            throw HarnessError.llmRequestFailed
+        let responseBody = String(data: data, encoding: .utf8) ?? ""
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw HarnessError.llmRequestFailed(statusCode: nil, body: responseBody)
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw HarnessError.llmRequestFailed(
+                statusCode: httpResponse.statusCode,
+                body: responseBody
+            )
         }
         
         let decoded = try JSONDecoder().decode(OllamaChatResponse.self, from: data)
