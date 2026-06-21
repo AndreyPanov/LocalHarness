@@ -263,11 +263,7 @@ public struct MonthlyMetalScout: Sendable {
         catalogCandidates: [MonthlyMetalCandidate],
         extractionResults: [MonthlyMetalEditorialExtractionResult]
     ) -> [MonthlyMetalCandidate] {
-        var candidatesByIdentity = Dictionary(
-            uniqueKeysWithValues: catalogCandidates.map {
-                (identity(for: $0), $0)
-            }
-        )
+        var candidatesByIdentity: [MonthlyMetalReleaseIdentity: MonthlyMetalCandidate] = [:]
 
         for result in extractionResults {
             for extractedCandidate in result.candidates {
@@ -283,6 +279,16 @@ public struct MonthlyMetalScout: Sendable {
                     candidatesByIdentity[identity] = candidate
                 }
             }
+        }
+
+        for catalogCandidate in catalogCandidates {
+            let identity = identity(for: catalogCandidate)
+
+            guard let existing = candidatesByIdentity[identity] else {
+                continue
+            }
+
+            candidatesByIdentity[identity] = merge(existing, with: catalogCandidate)
         }
 
         return candidatesByIdentity.values.sorted(by: shouldSortBefore)

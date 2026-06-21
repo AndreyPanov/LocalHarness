@@ -63,7 +63,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
                 if let metalArchivesURL = candidate.metalArchivesURL {
                     print("  Metal Archives: \(metalArchivesURL.absoluteString)")
                 } else {
-                    print("  Metal Archives: not matched")
+                    print("  Metal Archives: pending enrichment")
                 }
 
                 print("  Sources:")
