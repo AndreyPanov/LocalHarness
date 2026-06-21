@@ -256,8 +256,10 @@ import Testing
     #expect(result.runID == RunID("test-monthly-metal-scout"))
     #expect(FileManager.default.fileExists(atPath: result.runDirectory.path))
     #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
+    #expect(FileManager.default.fileExists(atPath: result.potentialCandidatesArtifactURL.path))
     #expect(FileManager.default.fileExists(atPath: result.editorialDocumentsArtifactURL.path))
     #expect(result.candidates.count == 1)
+    #expect(result.potentialCandidates.count == 1)
     #expect(lamp.albumTitle == "The Dreaming Prince in Ecstasy")
     #expect(lamp.releaseType == "Full-length")
     #expect(lamp.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
@@ -265,6 +267,112 @@ import Testing
     #expect(lamp.sources.map(\.name) == ["Metal Archives monthly search"])
     #expect(editorialDocumentsJSON.contains(#""sourceName" : "Example monthly top albums""#))
     #expect(editorialDocumentsJSON.contains("Editorial Only - Hidden Demo"))
+}
+
+@Test func monthlyMetalScoutWritesPotentialCandidatesFromCatalogAndEditorialExtraction() async throws {
+    let temporaryDirectory = try makeTemporaryDirectory()
+    let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
+    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
+    let searchURL = MetalArchivesAdvancedAlbumSearchSource().searchURL(for: month)
+    let searchPage = try jsonPage(
+        url: searchURL,
+        fixtureName: "metal-archives-advanced-album-search-2025-11"
+    )
+
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    try writeEditorialSource(
+        month: "2025-11",
+        knowledgeDirectory: knowledgeDirectory,
+        manifest: """
+        {
+          "sources": [
+            {
+              "name": "Example editorial source",
+              "kind": "ranked_list",
+              "url": "https://example.com/editorial",
+              "file": "editorial.txt"
+            }
+          ]
+        }
+        """,
+        files: [
+            "editorial.txt": """
+            Lamp of Murmuur - The Dreaming Prince in Ecstasy
+            Editorial Only - Hidden Demo
+            """
+        ]
+    )
+
+    let scout = MonthlyMetalScout(
+        runsDirectory: runsDirectory,
+        knowledgeDirectory: knowledgeDirectory,
+        runIDProvider: { RunID("test-monthly-metal-potential") },
+        crawlClientFactory: { _ in DictionaryCrawlClient(pages: [searchURL: searchPage]) },
+        llmProviderFactory: { _ in
+            StubLLMProvider(response: """
+            {
+              "candidates": [
+                {
+                  "bandName": "Lamp of Murmuur",
+                  "albumTitle": "The Dreaming Prince in Ecstasy",
+                  "sourceSignal": "mentioned_album",
+                  "labelName": null,
+                  "releaseDateText": null,
+                  "evidence": "Lamp of Murmuur - The Dreaming Prince in Ecstasy",
+                  "confidence": 0.8
+                },
+                {
+                  "bandName": "Editorial Only",
+                  "albumTitle": "Hidden Demo",
+                  "sourceSignal": "mentioned_album",
+                  "labelName": "Example Label",
+                  "releaseDateText": "November 2025",
+                  "evidence": "Editorial Only - Hidden Demo",
+                  "confidence": 0.7
+                }
+              ]
+            }
+            """)
+        }
+    )
+
+    let result = try await scout.listCandidates(
+        month: "2025-11",
+        editorialExtraction: MonthlyMetalLLMExtractionConfiguration(
+            baseURL: URL(string: "http://127.0.0.1:8081/v1")!,
+            model: "stub-model"
+        )
+    )
+    let potentialCandidatesJSON = try String(
+        contentsOf: result.potentialCandidatesArtifactURL,
+        encoding: .utf8
+    )
+    let editorialExtractionJSON = try String(
+        contentsOf: try #require(result.editorialExtractionArtifactURL),
+        encoding: .utf8
+    )
+    let lamp = try #require(result.potentialCandidates.first {
+        $0.bandName == "Lamp of Murmuur"
+    })
+    let editorialOnly = try #require(result.potentialCandidates.first {
+        $0.bandName == "Editorial Only"
+    })
+
+    #expect(result.candidates.count == 1)
+    #expect(result.potentialCandidates.count == 2)
+    #expect(lamp.sources.count == 2)
+    #expect(lamp.sources.contains { $0.kind == "metal_archives_catalog" })
+    #expect(lamp.sources.contains { $0.kind == "ranked_list" && $0.signal == "mentioned_album" })
+    #expect(editorialOnly.albumTitle == "Hidden Demo")
+    #expect(editorialOnly.labelName == "Example Label")
+    #expect(editorialOnly.releaseDateText == "November 2025")
+    #expect(editorialOnly.metalArchivesURL == nil)
+    #expect(editorialOnly.sources.first?.confidence == 0.7)
+    #expect(potentialCandidatesJSON.contains("Example editorial source"))
+    #expect(potentialCandidatesJSON.contains("Editorial Only"))
+    #expect(editorialExtractionJSON.contains("Editorial Only - Hidden Demo"))
 }
 
 @Test func monthlyMetalScoutListsCatalogCandidatesWithoutFetchingAlbumPages() async throws {
@@ -291,8 +399,10 @@ import Testing
 
     #expect(result.runID == RunID("test-monthly-metal-list"))
     #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
+    #expect(FileManager.default.fileExists(atPath: result.potentialCandidatesArtifactURL.path))
     #expect(FileManager.default.fileExists(atPath: result.editorialDocumentsArtifactURL.path))
     #expect(result.candidates.count == 1)
+    #expect(result.potentialCandidates.count == 1)
     #expect(result.candidates.first?.bandName == "Lamp of Murmuur")
     #expect(result.candidates.first?.albumTitle == "The Dreaming Prince in Ecstasy")
     #expect(result.candidates.first?.releaseType == "Full-length")
@@ -438,5 +548,13 @@ private struct FailingLLMFallback: LLMExtractionFallback {
 
     func extractBandcampAvailability(from page: CrawledPage) async throws -> BandcampAvailabilityDraft {
         throw HarnessError.invalidAgentAction("LLM fallback should not be used in this test.")
+    }
+}
+
+private struct StubLLMProvider: LLMProvider {
+    let response: String
+
+    func complete(_ request: LLMRequest) async throws -> String {
+        response
     }
 }

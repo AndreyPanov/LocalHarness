@@ -77,6 +77,14 @@ final class OllamaLLMProvider: LLMProvider {
                     ]
                 ]
            ]
+        var options: [String: Any] = [
+            "temperature": request.temperature
+        ]
+
+        if let maxTokens = request.maxTokens {
+            options["num_predict"] = maxTokens
+        }
+
         let body: [String: Any] = [
               "model": request.model,
               "messages": [
@@ -91,9 +99,7 @@ final class OllamaLLMProvider: LLMProvider {
               ],
               "stream": false,
               "format": actionSchema,
-              "options": [
-                  "temperature": 0
-              ]
+              "options": options
           ]
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"

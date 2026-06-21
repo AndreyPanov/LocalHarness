@@ -4,21 +4,30 @@ public struct MonthlyMetalCandidateListResult: Sendable {
     public let runID: RunID
     public let runDirectory: URL
     public let candidateArtifactURL: URL
+    public let potentialCandidatesArtifactURL: URL
     public let editorialDocumentsArtifactURL: URL
+    public let editorialExtractionArtifactURL: URL?
     public let candidates: [MonthlyMetalCandidate]
+    public let potentialCandidates: [MonthlyMetalCandidate]
 
     public init(
         runID: RunID,
         runDirectory: URL,
         candidateArtifactURL: URL,
+        potentialCandidatesArtifactURL: URL,
         editorialDocumentsArtifactURL: URL,
-        candidates: [MonthlyMetalCandidate]
+        editorialExtractionArtifactURL: URL? = nil,
+        candidates: [MonthlyMetalCandidate],
+        potentialCandidates: [MonthlyMetalCandidate]
     ) {
         self.runID = runID
         self.runDirectory = runDirectory
         self.candidateArtifactURL = candidateArtifactURL
+        self.potentialCandidatesArtifactURL = potentialCandidatesArtifactURL
         self.editorialDocumentsArtifactURL = editorialDocumentsArtifactURL
+        self.editorialExtractionArtifactURL = editorialExtractionArtifactURL
         self.candidates = candidates
+        self.potentialCandidates = potentialCandidates
     }
 }
 
@@ -60,6 +69,9 @@ public struct MonthlyMetalCandidateSource: Codable, Hashable, Sendable {
     public let itemURL: URL?
     public let rank: Int?
     public let note: String?
+    public let signal: String?
+    public let evidence: String?
+    public let confidence: Double?
 
     public init(
         name: String,
@@ -67,7 +79,10 @@ public struct MonthlyMetalCandidateSource: Codable, Hashable, Sendable {
         sourceURL: URL?,
         itemURL: URL?,
         rank: Int? = nil,
-        note: String? = nil
+        note: String? = nil,
+        signal: String? = nil,
+        evidence: String? = nil,
+        confidence: Double? = nil
     ) {
         self.name = name
         self.kind = kind
@@ -75,5 +90,8 @@ public struct MonthlyMetalCandidateSource: Codable, Hashable, Sendable {
         self.itemURL = itemURL
         self.rank = rank
         self.note = note
+        self.signal = signal
+        self.evidence = evidence
+        self.confidence = confidence
     }
 }

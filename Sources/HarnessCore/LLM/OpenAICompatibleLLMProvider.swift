@@ -21,6 +21,7 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
                 .init(role: "user", content: request.userPrompt)
             ],
             temperature: request.temperature,
+            maxTokens: request.maxTokens,
             stream: false
         )
 
@@ -71,12 +72,21 @@ private struct OpenAIChatRequest: Encodable {
     let model: String
     let messages: [OpenAIChatMessage]
     let temperature: Double
+    let maxTokens: Int?
     let stream: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case model
+        case messages
+        case temperature
+        case maxTokens = "max_tokens"
+        case stream
+    }
 }
 
 private struct OpenAIChatMessage: Codable {
     let role: String
-    let content: String
+    let content: String?
 }
 
 private struct OpenAIChatResponse: Decodable {

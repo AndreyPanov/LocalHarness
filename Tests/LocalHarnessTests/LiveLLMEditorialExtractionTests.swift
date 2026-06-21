@@ -4,20 +4,25 @@ import Testing
 
 private let liveLLMTestsEnabled = ProcessInfo.processInfo.environment["RUN_LIVE_LLM_TESTS"] == "1"
 
-@Test/*(.enabled(if: liveLLMTestsEnabled))*/
-func liveLLMServerRespondsToSimplePrompt() async throws {
+@Suite(.serialized)
+struct LiveLLMEditorialExtractionTests {
+@Test(.enabled(if: liveLLMTestsEnabled))
+func serverRespondsToSimplePrompt() async throws {
     let config = try await LiveLLMTestConfig.load()
-    let provider = OpenAICompatibleLLMProvider(baseURL: config.baseURL)
+    let provider = makeLiveLLMProvider(config: config)
 
     print("[LiveLLM] baseURL: \(config.baseURL.absoluteString)")
     print("[LiveLLM] model: \(config.model)")
     print("[LiveLLM] temperature: \(config.temperature)")
+    print("[LiveLLM] maxTokens: \(config.maxTokens)")
+    print("[LiveLLM] requestTimeout: \(config.requestTimeout)")
 
     let response = try await provider.complete(LLMRequest(
         model: config.model,
         systemPrompt: "You are a test responder. Reply with JSON only.",
         userPrompt: #"Return exactly: {"ok": true}"#,
-        temperature: 0
+        temperature: 0,
+        maxTokens: config.maxTokens
     ))
 
     print("[LiveLLM] simple response:")
@@ -30,8 +35,8 @@ func liveLLMServerRespondsToSimplePrompt() async throws {
     #expect(response.contains("ok"))
 }
 
-@Test/*(.enabled(if: liveLLMTestsEnabled))*/
-func liveLLMExtractsCandidatesFromBangerTVMonthlyVideo() async throws {
+@Test(.enabled(if: liveLLMTestsEnabled))
+func extractsCandidatesFromBangerTVMonthlyVideo() async throws {
     let config = try await LiveLLMTestConfig.load()
     let videoURL = URL(string: "https://www.youtube.com/watch?v=Punc3i5Su30")!
 
@@ -66,8 +71,8 @@ func liveLLMExtractsCandidatesFromBangerTVMonthlyVideo() async throws {
     #expect(candidates.allSatisfy { ($0.confidence ?? 0.5) >= 0 && ($0.confidence ?? 0.5) <= 1 })
 }
 
-@Test/*(.enabled(if: liveLLMTestsEnabled))*/
-func liveLLMExtractsReviewedAlbumAndShoutoutsFromBangerTVReview() async throws {
+@Test(.enabled(if: liveLLMTestsEnabled))
+func extractsReviewedAlbumAndShoutoutsFromBangerTVReview() async throws {
     let config = try await LiveLLMTestConfig.load()
     let videoURL = URL(string: "https://www.youtube.com/watch?v=DV-Z4kzZMfM")!
     let description = try await fetchYouTubeDescription(videoURL)
@@ -88,8 +93,8 @@ func liveLLMExtractsReviewedAlbumAndShoutoutsFromBangerTVReview() async throws {
     #expect(candidates.contains { $0.sourceSignal == "shout_out" })
 }
 
-@Test/*(.enabled(if: liveLLMTestsEnabled))*/
-func liveLLMExtractsCandidatesFromBangerTVJuneSourceDocuments() async throws {
+@Test(.enabled(if: liveLLMTestsEnabled))
+func extractsCandidatesFromBangerTVJuneSourceDocuments() async throws {
     let config = try await LiveLLMTestConfig.load()
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let temp = FileManager.default.temporaryDirectory
@@ -140,31 +145,99 @@ func liveLLMExtractsCandidatesFromBangerTVJuneSourceDocuments() async throws {
     #expect(candidates.allSatisfy { !$0.bandName.isEmpty && !$0.albumTitle.isEmpty })
 }
 
+@Test(.enabled(if: liveLLMTestsEnabled))
+func extractsCandidatesFromInfidelAmsterdamInstagramPosts() async throws {
+    let config = try await LiveLLMTestConfig.load()
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
+    let temp = FileManager.default.temporaryDirectory
+        .appendingPathComponent("local-harness-live-llm-tests", isDirectory: true)
+    let context = ResearchContext(
+        month: month,
+        runID: RunID("live-llm-instagram"),
+        crawlClient: CachedCrawlClient(
+            wrapped: URLSessionCrawlClient(),
+            cacheDirectory: temp.appendingPathComponent("crawl-cache", isDirectory: true)
+        ),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: temp,
+        knowledgeDirectory: temp
+    )
+    let descriptor = EditorialSourceDescriptor(
+        name: "InfidelAmsterdam Instagram",
+        kind: "instagram_profile",
+        sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,
+        username: "infidelamsterdam"
+    )
+    let documents = try await InstagramProfileEditorialDocumentSource(maxPages: 4).documents(
+        for: month,
+        descriptor: descriptor,
+        context: context
+    )
+    let albumLikeDocuments = documents.filter(isLikelyInstagramAlbumPost)
+    let limitedDocuments = Array(albumLikeDocuments.prefix(config.instagramDocumentLimit))
+    var candidates: [LLMAlbumCandidate] = []
+
+    print("[LiveLLM] Instagram documents count: \(documents.count)")
+    print("[LiveLLM] Instagram album-like documents count: \(albumLikeDocuments.count)")
+    print("[LiveLLM] Instagram documents sent to LLM: \(limitedDocuments.count)")
+
+    for document in limitedDocuments {
+        let outputName = LiveLLMOutputWriter.safeFileName(document.title ?? document.sourceKind)
+        try LiveLLMOutputWriter.writeText(
+            document.text,
+            fileName: "\(outputName)-caption.txt"
+        )
+        candidates.append(contentsOf: try await extractCandidates(
+            description: document.text,
+            sourceTitle: document.title ?? "InfidelAmsterdam Instagram post",
+            sourceKind: document.sourceKind,
+            outputName: outputName,
+            config: config
+        ))
+        print("[LiveLLM] Instagram document: \(document.title ?? "untitled")")
+        print("[LiveLLM] itemURL: \(document.itemURL?.absoluteString ?? "unknown")")
+        print("[LiveLLM] caption chars: \(document.text.count)")
+    }
+
+    print("[LiveLLM] Instagram extracted candidates count: \(candidates.count)")
+    for candidate in candidates {
+        print("[LiveLLM] Instagram candidate: \(candidate.bandName) - \(candidate.albumTitle)")
+        print("[LiveLLM] signal: \(candidate.sourceSignal ?? "nil")")
+    }
+
+    #expect(!documents.isEmpty)
+    #expect(!albumLikeDocuments.isEmpty)
+    #expect(!limitedDocuments.isEmpty)
+    #expect(!candidates.isEmpty)
+    #expect(candidates.allSatisfy { !$0.bandName.isEmpty && !$0.albumTitle.isEmpty })
+}
+}
+
 private struct LiveLLMTestConfig {
     let baseURL: URL
     let model: String
     let temperature: Double
+    let maxTokens: Int
+    let requestTimeout: TimeInterval
+    let instagramDocumentLimit: Int
 
     static func load() async throws -> LiveLLMTestConfig {
         let env = ProcessInfo.processInfo.environment
         let baseURL = URL(string: env["LOCAL_HARNESS_LLM_BASE_URL"] ?? "http://127.0.0.1:8081/v1")!
         let configuredModel = env["LOCAL_HARNESS_LLM_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let model: String
-
-        if let configuredModel,
-           !configuredModel.isEmpty,
-           configuredModel != "your-real-model-id",
-           configuredModel != "your-exact-model-id"
-        {
-            model = configuredModel
+        let model = if let configuredModel, !configuredModel.isEmpty {
+            configuredModel
         } else {
-            model = try await discoverFirstModelID(baseURL: baseURL)
+            "mlx-community/Qwen3.6-35B-A3B-4bit-DWQ"
         }
 
         return LiveLLMTestConfig(
             baseURL: baseURL,
             model: model,
-            temperature: Double(env["LOCAL_HARNESS_LLM_TEMPERATURE"] ?? "0") ?? 0
+            temperature: Double(env["LOCAL_HARNESS_LLM_TEMPERATURE"] ?? "0") ?? 0,
+            maxTokens: Int(env["LOCAL_HARNESS_LLM_MAX_TOKENS"] ?? "8192") ?? 8192,
+            requestTimeout: TimeInterval(env["LOCAL_HARNESS_LLM_TIMEOUT"] ?? "300") ?? 300,
+            instagramDocumentLimit: Int(env["LOCAL_HARNESS_INSTAGRAM_DOCUMENT_LIMIT"] ?? "3") ?? 3
         )
     }
 
@@ -196,6 +269,17 @@ private struct LiveLLMTestConfig {
     }
 }
 
+private func makeLiveLLMProvider(config: LiveLLMTestConfig) -> OpenAICompatibleLLMProvider {
+    let sessionConfiguration = URLSessionConfiguration.default
+    sessionConfiguration.timeoutIntervalForRequest = config.requestTimeout
+    sessionConfiguration.timeoutIntervalForResource = config.requestTimeout
+
+    return OpenAICompatibleLLMProvider(
+        baseURL: config.baseURL,
+        session: URLSession(configuration: sessionConfiguration)
+    )
+}
+
 private struct OpenAIModelsResponse: Decodable {
     let data: [OpenAIModel]
 }
@@ -222,7 +306,7 @@ private func extractCandidates(
     outputName: String,
     config: LiveLLMTestConfig
 ) async throws -> [LLMAlbumCandidate] {
-    let provider = OpenAICompatibleLLMProvider(baseURL: config.baseURL)
+    let provider = makeLiveLLMProvider(config: config)
 
     print("[LiveLLM] extracting candidates")
     print("[LiveLLM] sourceTitle: \(sourceTitle)")
@@ -233,13 +317,36 @@ private func extractCandidates(
         model: config.model,
         systemPrompt: albumExtractionSystemPrompt,
         userPrompt: """
+        /no_think
+
         Source title: \(sourceTitle)
         Source kind: \(sourceKind)
+
+        BangerTV monthly descriptions usually repeat this block:
+        band name
+        album title
+        label name
+        release date
+        link
+
+        For example:
+        Astriferous
+        Atavistic Unraveling
+        Me Saco un Ojo/Pulverised
+        June 26th, 2026
+
+        means bandName is Astriferous, albumTitle is Atavistic Unraveling, labelName is Me Saco un Ojo/Pulverised.
+        Do not create album candidates from label names or URLs.
+
+        Instagram arrival posts usually list records as album arrivals, stock updates, or format notes.
+        For Instagram arrival posts, use sourceSignal instagram_arrival unless the post is clearly only a general mention.
+        Extract every album or release listed in the post caption.
 
         Full description:
         \(description)
         """,
-        temperature: config.temperature
+        temperature: config.temperature,
+        maxTokens: config.maxTokens
     ))
 
     print("[LiveLLM] raw model response:")
@@ -256,19 +363,49 @@ private func extractCandidates(
         json,
         fileName: "\(outputName)-candidates.json"
     )
-    let envelope = try JSONDecoder().decode(LLMAlbumCandidateEnvelope.self, from: Data(json.utf8))
-    print("[LiveLLM] decoded candidates: \(envelope.candidates.count)")
+    let candidates = try decodeCandidates(from: json)
+    print("[LiveLLM] decoded candidates: \(candidates.count)")
 
-    return envelope.candidates.filter {
+    return candidates.filter {
         !$0.bandName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !$0.albumTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+}
+
+private func isLikelyInstagramAlbumPost(_ document: MonthlyMetalEditorialSourceDocument) -> Bool {
+    let text = document.text
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+        .lowercased()
+
+    let albumSignals = [
+        "new arrival",
+        "new arrivals",
+        "vinyl",
+        " lp",
+        " cd",
+        "cassette",
+        "tape",
+        "full length",
+        "full-length",
+        "album",
+        "demo",
+        "ep",
+        "black metal",
+        "death metal",
+        "doom metal",
+        "heavy metal",
+        "thrash metal"
+    ]
+
+    return albumSignals.contains { text.contains($0) }
 }
 
 private let albumExtractionSystemPrompt = """
 You extract heavy metal album candidates from source descriptions.
 
 Return only valid JSON. Do not use markdown.
+Return the JSON immediately. Do not explain your reasoning.
+Do not include analysis, notes, code fences, or prose.
 Do not invent facts. Use null for unknown fields.
 If an album is self-titled - return band's name as an album title.
 Extract reviewed albums, monthly picks, shout-outs, and store arrival mentions.
@@ -304,6 +441,43 @@ private struct LLMAlbumCandidate: Decodable {
     let releaseDateText: String?
     let evidence: String?
     let confidence: Double?
+
+    private enum CodingKeys: CodingKey {
+        case bandName
+        case albumTitle
+        case sourceSignal
+        case labelName
+        case releaseDateText
+        case evidence
+        case confidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.bandName = try container.decodeIfPresent(String.self, forKey: .bandName) ?? ""
+        self.albumTitle = try container.decodeIfPresent(String.self, forKey: .albumTitle) ?? ""
+        self.sourceSignal = try container.decodeIfPresent(String.self, forKey: .sourceSignal)
+        self.labelName = try container.decodeIfPresent(String.self, forKey: .labelName)
+        self.releaseDateText = try container.decodeIfPresent(String.self, forKey: .releaseDateText)
+        self.evidence = try container.decodeIfPresent(String.self, forKey: .evidence)
+        self.confidence = try container.decodeIfPresent(Double.self, forKey: .confidence)
+    }
+}
+
+private func decodeCandidates(from json: String) throws -> [LLMAlbumCandidate] {
+    let data = Data(json.utf8)
+    let decoder = JSONDecoder()
+
+    if let envelope = try? decoder.decode(LLMAlbumCandidateEnvelope.self, from: data) {
+        return envelope.candidates
+    }
+
+    if let candidates = try? decoder.decode([LLMAlbumCandidate].self, from: data) {
+        return candidates
+    }
+
+    return [try decoder.decode(LLMAlbumCandidate.self, from: data)]
 }
 
 private enum LiveLLMOutputWriter {
@@ -370,8 +544,14 @@ private func jsonPayload(from response: String) -> String {
         .replacingOccurrences(of: #"^```(?:json)?\s*"#, with: "", options: .regularExpression)
         .replacingOccurrences(of: #"\s*```$"#, with: "", options: .regularExpression)
 
-    guard let start = cleaned.firstIndex(of: "{"),
-          let end = cleaned.lastIndex(of: "}")
+    guard let start = cleaned.firstIndex(where: { $0 == "{" || $0 == "[" }) else {
+        return cleaned
+    }
+
+    let openingCharacter = cleaned[start]
+    let closingCharacter: Character = openingCharacter == "[" ? "]" : "}"
+
+    guard let end = cleaned.lastIndex(of: closingCharacter)
     else {
         return cleaned
     }

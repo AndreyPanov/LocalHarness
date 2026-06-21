@@ -11,18 +11,40 @@ struct ScoutMetalCommand: AsyncParsableCommand {
     @Option(help: "Month to scout, formatted as YYYY-MM.")
     var month: String
 
+    @Flag(help: "Skip local LLM extraction from editorial source documents.")
+    var skipEditorialExtraction = false
+
+    @Option(help: "OpenAI-compatible local LLM base URL.")
+    var llmBaseURL = "http://127.0.0.1:8081/v1"
+
+    @Option(help: "Model name sent to the local LLM server. Defaults to LOCAL_HARNESS_LLM_MODEL or the project default.")
+    var llmModel: String?
+
+    @Option(help: "Temperature for editorial candidate extraction.")
+    var llmTemperature: Double = 0
+
+    @Option(help: "Maximum completion tokens for editorial candidate extraction.")
+    var llmMaxTokens: Int = 8192
+
+    @Option(help: "Request timeout in seconds for editorial candidate extraction.")
+    var llmTimeout: Double = 300
+
     func run() async throws {
         let scout = MonthlyMetalScout()
-        let result = try await scout.listCandidates(month: month)
+        let result = try await scout.listCandidates(
+            month: month,
+            editorialExtraction: try editorialExtractionConfiguration()
+        )
 
-        print("Monthly metal candidates for \(month)")
-        print("Found: \(result.candidates.count)")
+        print("Monthly metal potential candidates for \(month)")
+        print("Catalog candidates: \(result.candidates.count)")
+        print("Potential candidates: \(result.potentialCandidates.count)")
         print("")
 
-        if result.candidates.isEmpty {
+        if result.potentialCandidates.isEmpty {
             print("No candidates found.")
         } else {
-            for candidate in result.candidates {
+            for candidate in result.potentialCandidates {
                 print("\(candidate.bandName) - \(candidate.albumTitle)")
                 print("  Type: \(candidate.releaseType ?? "unknown")")
 
@@ -73,8 +95,33 @@ struct ScoutMetalCommand: AsyncParsableCommand {
         print("")
         print("Run ID: \(result.runID)")
         print("Run artifacts: \(result.runDirectory.path)")
-        print("Candidate artifact: \(result.candidateArtifactURL.path)")
+        print("Catalog candidate artifact: \(result.candidateArtifactURL.path)")
+        print("Potential candidate artifact: \(result.potentialCandidatesArtifactURL.path)")
         print("Editorial source documents: \(result.editorialDocumentsArtifactURL.path)")
+
+        if let editorialExtractionArtifactURL = result.editorialExtractionArtifactURL {
+            print("Editorial extracted candidates: \(editorialExtractionArtifactURL.path)")
+        }
+    }
+
+    private func editorialExtractionConfiguration() throws -> MonthlyMetalLLMExtractionConfiguration? {
+        guard !skipEditorialExtraction else {
+            return nil
+        }
+
+        guard let baseURL = URL(string: llmBaseURL) else {
+            throw ValidationError("Invalid --llm-base-url: \(llmBaseURL)")
+        }
+
+        return MonthlyMetalLLMExtractionConfiguration(
+            baseURL: baseURL,
+            model: llmModel
+                ?? ProcessInfo.processInfo.environment["LOCAL_HARNESS_LLM_MODEL"]
+                ?? "mlx-community/Qwen3.6-35B-A3B-4bit-DWQ",
+            temperature: llmTemperature,
+            maxTokens: llmMaxTokens,
+            requestTimeout: llmTimeout
+        )
     }
 
     private static let dateFormatter: DateFormatter = {
