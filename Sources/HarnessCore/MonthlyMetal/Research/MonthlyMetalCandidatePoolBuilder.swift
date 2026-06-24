@@ -5,9 +5,7 @@ struct MonthlyMetalCandidatePoolBuilder: Sendable {
 
     private let metalArchivesSearchSource: MetalArchivesAdvancedAlbumSearchSource
 
-    init(
-        metalArchivesSearchSource: MetalArchivesAdvancedAlbumSearchSource = MetalArchivesAdvancedAlbumSearchSource()
-    ) {
+    init(metalArchivesSearchSource: MetalArchivesAdvancedAlbumSearchSource = .init()) {
         self.metalArchivesSearchSource = metalArchivesSearchSource
     }
 

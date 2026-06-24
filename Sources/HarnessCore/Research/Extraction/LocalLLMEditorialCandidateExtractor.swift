@@ -20,42 +20,90 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
 
     func extract(from document: MonthlyMetalEditorialSourceDocument) async -> MonthlyMetalEditorialExtractionResult {
         do {
-            let response = try await provider.complete(LLMRequest(
+            let firstResponse = try await provider.complete(LLMRequest(
                 model: model,
                 systemPrompt: systemPrompt,
                 userPrompt: userPrompt(for: document),
                 temperature: temperature,
                 maxTokens: maxTokens
             ))
-            let candidates = try Self.decodeCandidates(
-                from: response,
-                defaultSignal: defaultSignal(for: document)
-            )
 
-            return MonthlyMetalEditorialExtractionResult(
-                sourceName: document.sourceName,
-                sourceKind: document.sourceKind,
-                sourceURL: document.sourceURL,
-                itemURL: document.itemURL,
-                title: document.title,
-                publishedAt: document.publishedAt,
-                candidates: candidates,
-                rawResponse: response,
-                errorMessage: nil
-            )
+            switch Self.validateCandidates(from: firstResponse) {
+            case .success(let candidates):
+                return result(
+                    for: document,
+                    candidates: candidates,
+                    rawResponse: firstResponse,
+                    errorMessage: nil
+                )
+
+            case .failure(let firstFailure):
+                let repairResponse = try await provider.complete(LLMRequest(
+                    model: model,
+                    systemPrompt: repairSystemPrompt,
+                    userPrompt: Self.repairPrompt(
+                        invalidResponse: firstResponse,
+                        validationFailure: firstFailure
+                    ),
+                    temperature: 0,
+                    maxTokens: maxTokens
+                ))
+
+                switch Self.validateCandidates(from: repairResponse) {
+                case .success(let candidates):
+                    return result(
+                        for: document,
+                        candidates: candidates,
+                        rawResponse: Self.combinedRawResponse(
+                            first: firstResponse,
+                            repair: repairResponse
+                        ),
+                        errorMessage: nil
+                    )
+
+                case .failure(let repairFailure):
+                    return result(
+                        for: document,
+                        candidates: [],
+                        rawResponse: Self.combinedRawResponse(
+                            first: firstResponse,
+                            repair: repairResponse
+                        ),
+                        errorMessage: """
+                        LLM extraction JSON validation failed after repair.
+                        First attempt: \(firstFailure.description)
+                        Repair attempt: \(repairFailure.description)
+                        """
+                    )
+                }
+            }
         } catch {
-            return MonthlyMetalEditorialExtractionResult(
-                sourceName: document.sourceName,
-                sourceKind: document.sourceKind,
-                sourceURL: document.sourceURL,
-                itemURL: document.itemURL,
-                title: document.title,
-                publishedAt: document.publishedAt,
+            return result(
+                for: document,
                 candidates: [],
                 rawResponse: nil,
                 errorMessage: String(describing: error)
             )
         }
+    }
+
+    private func result(
+        for document: MonthlyMetalEditorialSourceDocument,
+        candidates: [MonthlyMetalExtractedEditorialCandidate],
+        rawResponse: String?,
+        errorMessage: String?
+    ) -> MonthlyMetalEditorialExtractionResult {
+        MonthlyMetalEditorialExtractionResult(
+            sourceName: document.sourceName,
+            sourceKind: document.sourceKind,
+            sourceURL: document.sourceURL,
+            itemURL: document.itemURL,
+            title: document.title,
+            publishedAt: document.publishedAt,
+            candidates: candidates,
+            rawResponse: rawResponse,
+            errorMessage: errorMessage
+        )
     }
 
     private var systemPrompt: String {
@@ -68,6 +116,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
         Do not invent facts. Use null for unknown fields.
         If an album is self-titled, return the band's name as albumTitle.
         Extract reviewed albums, monthly picks, shout-outs, and store arrival mentions.
+        When a section is named "Shout Outs", "SHOUTOUTS", or similar, every album line in that section is an album candidate.
 
         Return this exact shape:
         {
@@ -116,6 +165,13 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
         means bandName is Astriferous, albumTitle is Atavistic Unraveling, labelName is Me Saco un Ojo/Pulverised.
         Do not create album candidates from label names or URLs.
 
+        BangerTV album review descriptions can include one reviewed album plus a Shout Outs section.
+        For source kind youtube_album_review:
+        - Extract the reviewed album with sourceSignal reviewed_album.
+        - Extract every album in a Shout Outs section with sourceSignal shout_out.
+        - Shout-out lines can look like "Band - Album - release date - label".
+        - Do not stop after the reviewed album if shout-outs are present.
+
         Instagram arrival posts usually list records as album arrivals, stock updates, or format notes.
         For Instagram arrival posts, use sourceSignal instagram_arrival unless the post is clearly only a general mention.
         Extract every album or release listed in the post caption.
@@ -125,46 +181,125 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
         """
     }
 
-    private func defaultSignal(for document: MonthlyMetalEditorialSourceDocument) -> String {
-        if document.sourceKind.contains("instagram") {
-            return "instagram_arrival"
-        }
+    private var repairSystemPrompt: String {
+        """
+        You repair JSON only.
 
-        if document.sourceKind.contains("monthly") {
-            return "monthly_pick"
-        }
-
-        if document.sourceKind.contains("review") {
-            return "reviewed_album"
-        }
-
-        return "mentioned_album"
+        Return only valid JSON. Do not use markdown.
+        Do not add new albums.
+        Do not analyze the original source.
+        Only repair the previous model response so it matches the required schema.
+        If no candidate can be recovered, return {"candidates":[]}.
+        """
     }
 
-    private static func decodeCandidates(
-        from response: String,
-        defaultSignal: String
-    ) throws -> [MonthlyMetalExtractedEditorialCandidate] {
-        let json = jsonPayload(from: response)
-        let data = Data(json.utf8)
-        let decoder = JSONDecoder()
-        let drafts: [LLMAlbumCandidateDraft]
+    private static func repairPrompt(
+        invalidResponse: String,
+        validationFailure: CandidateValidationFailure
+    ) -> String {
+        """
+        The previous response failed Swift JSON/schema validation.
 
-        if let envelope = try? decoder.decode(LLMAlbumCandidateEnvelope.self, from: data) {
-            drafts = envelope.candidates
-        } else if let candidateDrafts = try? decoder.decode([LLMAlbumCandidateDraft].self, from: data) {
-            drafts = candidateDrafts
-        } else {
-            drafts = [try decoder.decode(LLMAlbumCandidateDraft.self, from: data)]
+        Validation issues:
+        \(validationFailure.issues.map { "- \($0)" }.joined(separator: "\n"))
+
+        Required shape:
+        {
+          "candidates": [
+            {
+              "bandName": "Band",
+              "albumTitle": "Album",
+              "sourceSignal": "reviewed_album",
+              "labelName": null,
+              "releaseDateText": null,
+              "evidence": "Short evidence from the previous response",
+              "confidence": 0.9
+            }
+          ]
         }
 
-        var seen = Set<MonthlyMetalReleaseIdentity>()
+        Allowed sourceSignal values:
+        reviewed_album, monthly_pick, shout_out, instagram_arrival, mentioned_album, uncertain
 
-        return drafts.compactMap { draft in
-            guard let bandName = nonEmpty(draft.bandName),
-                  let albumTitle = nonEmpty(draft.albumTitle)
+        Invalid response to repair:
+        \(invalidResponse)
+        """
+    }
+
+    private static func combinedRawResponse(first: String, repair: String) -> String {
+        """
+        --- initial response ---
+        \(first)
+
+        --- repair response ---
+        \(repair)
+        """
+    }
+
+    private static let allowedSignals: Set<String> = [
+        "reviewed_album",
+        "monthly_pick",
+        "shout_out",
+        "instagram_arrival",
+        "mentioned_album",
+        "uncertain"
+    ]
+
+    private static func validateCandidates(
+        from response: String
+    ) -> Result<[MonthlyMetalExtractedEditorialCandidate], CandidateValidationFailure> {
+        let payload = jsonPayload(from: response)
+        let data = Data(payload.utf8)
+        let envelope: LLMAlbumCandidateEnvelope
+
+        do {
+            envelope = try JSONDecoder().decode(LLMAlbumCandidateEnvelope.self, from: data)
+        } catch {
+            return .failure(CandidateValidationFailure(
+                payload: payload,
+                issues: [
+                    "Response must be valid JSON object with top-level candidates array. Decode error: \(error)"
+                ]
+            ))
+        }
+
+        var issues: [String] = []
+        var seen = Set<MonthlyMetalReleaseIdentity>()
+        var candidates: [MonthlyMetalExtractedEditorialCandidate] = []
+
+        for (index, draft) in envelope.candidates.enumerated() {
+            let prefix = "candidates[\(index)]"
+
+            guard let bandName = nonEmpty(draft.bandName) else {
+                issues.append("\(prefix).bandName must be a non-empty string")
+                continue
+            }
+
+            guard let albumTitle = nonEmpty(draft.albumTitle) else {
+                issues.append("\(prefix).albumTitle must be a non-empty string")
+                continue
+            }
+
+            guard let sourceSignal = nonEmpty(draft.sourceSignal),
+                  allowedSignals.contains(sourceSignal)
             else {
-                return nil
+                issues.append(
+                    "\(prefix).sourceSignal must be one of: \(allowedSignals.sorted().joined(separator: ", "))"
+                )
+                continue
+            }
+
+            guard let evidence = nonEmpty(draft.evidence) else {
+                issues.append("\(prefix).evidence must be a non-empty string")
+                continue
+            }
+
+            guard let confidence = draft.confidence,
+                  confidence >= 0,
+                  confidence <= 1
+            else {
+                issues.append("\(prefix).confidence must be a number between 0 and 1")
+                continue
             }
 
             let identity = MonthlyMetalReleaseIdentity(
@@ -173,19 +308,25 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
             )
 
             guard seen.insert(identity).inserted else {
-                return nil
+                continue
             }
 
-            return MonthlyMetalExtractedEditorialCandidate(
+            candidates.append(MonthlyMetalExtractedEditorialCandidate(
                 bandName: bandName,
                 albumTitle: albumTitle,
-                sourceSignal: nonEmpty(draft.sourceSignal) ?? defaultSignal,
+                sourceSignal: sourceSignal,
                 labelName: nonEmpty(draft.labelName),
                 releaseDateText: nonEmpty(draft.releaseDateText),
-                evidence: nonEmpty(draft.evidence) ?? "\(bandName) - \(albumTitle)",
-                confidence: clampedConfidence(draft.confidence)
-            )
+                evidence: evidence,
+                confidence: confidence
+            ))
         }
+
+        if !issues.isEmpty {
+            return .failure(CandidateValidationFailure(payload: payload, issues: issues))
+        }
+
+        return .success(candidates)
     }
 
     private static func jsonPayload(from response: String) -> String {
@@ -217,13 +358,6 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private static func clampedConfidence(_ confidence: Double?) -> Double {
-        guard let confidence else {
-            return 0.5
-        }
-
-        return min(1, max(0, confidence))
-    }
 }
 
 private struct LLMAlbumCandidateEnvelope: Decodable {
@@ -238,4 +372,13 @@ private struct LLMAlbumCandidateDraft: Decodable {
     let releaseDateText: String?
     let evidence: String?
     let confidence: Double?
+}
+
+private struct CandidateValidationFailure: Error, CustomStringConvertible {
+    let payload: String
+    let issues: [String]
+
+    var description: String {
+        issues.joined(separator: "; ")
+    }
 }

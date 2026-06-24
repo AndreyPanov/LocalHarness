@@ -338,6 +338,13 @@ private func extractCandidates(
         means bandName is Astriferous, albumTitle is Atavistic Unraveling, labelName is Me Saco un Ojo/Pulverised.
         Do not create album candidates from label names or URLs.
 
+        BangerTV album review descriptions can include one reviewed album plus a Shout Outs section.
+        For source kind youtube_album_review:
+        - Extract the reviewed album with sourceSignal reviewed_album.
+        - Extract every album in a Shout Outs section with sourceSignal shout_out.
+        - Shout-out lines can look like "Band - Album - release date - label".
+        - Do not stop after the reviewed album if shout-outs are present.
+
         Instagram arrival posts usually list records as album arrivals, stock updates, or format notes.
         For Instagram arrival posts, use sourceSignal instagram_arrival unless the post is clearly only a general mention.
         Extract every album or release listed in the post caption.
@@ -409,6 +416,7 @@ Do not include analysis, notes, code fences, or prose.
 Do not invent facts. Use null for unknown fields.
 If an album is self-titled - return band's name as an album title.
 Extract reviewed albums, monthly picks, shout-outs, and store arrival mentions.
+When a section is named "Shout Outs", "SHOUTOUTS", or similar, every album line in that section is an album candidate.
 
 Return this exact shape:
 {

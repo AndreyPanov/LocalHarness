@@ -117,7 +117,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
             baseURL: baseURL,
             model: llmModel
                 ?? ProcessInfo.processInfo.environment["LOCAL_HARNESS_LLM_MODEL"]
-                ?? "mlx-community/Qwen3.6-35B-A3B-4bit-DWQ",
+                ?? "mlx-community/Qwen3-4B-Instruct-2507-4bit",
             temperature: llmTemperature,
             maxTokens: llmMaxTokens,
             requestTimeout: llmTimeout

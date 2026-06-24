@@ -201,6 +201,70 @@ import Testing
     #expect(document.text.contains("Walg: Walg l"))
 }
 
+@Test func editorialSourceDocumentSourceLoadsGlobalSourcesWithoutMonthManifest() async throws {
+    let temporaryDirectory = try makeTemporaryDirectory()
+    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-05-01"))
+    let feedURL = URL(string: "https://www.youtube.com/feeds/videos.xml?channel_id=test-channel")!
+    let videoURL = URL(string: "https://www.youtube.com/watch?v=may-monthly")!
+    let feedXML = """
+    <feed>
+      <entry>
+        <yt:videoId>may-monthly</yt:videoId>
+        <title>METAL MONTHLY MAY 2026 | Example Band</title>
+        <published>2026-05-10T15:19:20+00:00</published>
+      </entry>
+    </feed>
+    """
+    let videoHTML = #"""
+    <script>
+    var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"Example Band\nExample Album\nExample Label\nMay 2026"}};
+    </script>
+    """#
+    let context = ResearchContext(
+        month: month,
+        runID: RunID(),
+        crawlClient: DictionaryCrawlClient(pages: [
+            feedURL: CrawledPage(url: feedURL, finalURL: feedURL, title: nil, text: feedXML, html: feedXML),
+            videoURL: CrawledPage(url: videoURL, finalURL: videoURL, title: nil, text: videoHTML, html: videoHTML)
+        ]),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: temporaryDirectory,
+        knowledgeDirectory: knowledgeDirectory
+    )
+
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    try writeGlobalEditorialSource(
+        knowledgeDirectory: knowledgeDirectory,
+        manifest: """
+        {
+          "sources": [
+            {
+              "name": "BangerTV",
+              "kind": "youtube_channel",
+              "url": "https://www.youtube.com/@BangerTV",
+              "channelID": "test-channel"
+            }
+          ]
+        }
+        """
+    )
+
+    let documents = try await EditorialSourceDocumentSource(
+        knowledgeDirectory: knowledgeDirectory
+    ).documents(for: month, context: context)
+    let document = try #require(documents.first)
+
+    #expect(documents.count == 1)
+    #expect(document.sourceName == "BangerTV")
+    #expect(document.sourceKind == "youtube_monthly")
+    #expect(document.itemURL == videoURL)
+    #expect(document.title == "METAL MONTHLY MAY 2026 | Example Band")
+    #expect(document.text.contains("Example Band"))
+    #expect(document.text.contains("Example Album"))
+}
+
 @Test func monthlyMetalScoutWritesCatalogCandidatesAndEditorialDocumentsSeparately() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
@@ -501,6 +565,21 @@ private func makeTemporaryDirectory() throws -> URL {
 
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
+}
+
+private func writeGlobalEditorialSource(
+    knowledgeDirectory: URL,
+    manifest: String
+) throws {
+    let sourceDirectory = knowledgeDirectory
+        .appendingPathComponent("editorial-sources", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+    try manifest.write(
+        to: sourceDirectory.appendingPathComponent("sources.json", isDirectory: false),
+        atomically: true,
+        encoding: .utf8
+    )
 }
 
 private func writeEditorialSource(

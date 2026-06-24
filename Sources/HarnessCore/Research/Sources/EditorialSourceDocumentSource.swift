@@ -84,25 +84,17 @@ struct EditorialSourceDocumentSource: Sendable {
         for month: Date,
         context: ResearchContext
     ) async throws -> [MonthlyMetalEditorialSourceDocument] {
-        let directory = sourceDirectory(for: month)
-        let manifestURL = directory.appendingPathComponent("sources.json", isDirectory: false)
-
-        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
-            return []
-        }
-
-        let manifest = try JSONDecoder().decode(
-            EditorialSourceManifest.self,
-            from: Data(contentsOf: manifestURL)
-        )
+        let sourceManifests = try sourceManifests(for: month)
 
         var documents: [MonthlyMetalEditorialSourceDocument] = []
 
-        for descriptor in manifest.sources {
+        for sourceManifest in sourceManifests {
+            let descriptor = sourceManifest.descriptor
+
             if let file = descriptor.file {
                 documents.append(try fileDocument(
                     descriptor: descriptor,
-                    directory: directory,
+                    directory: sourceManifest.directory,
                     file: file
                 ))
                 continue
@@ -131,10 +123,43 @@ struct EditorialSourceDocumentSource: Sendable {
         return deduplicated(documents)
     }
 
-    func sourceDirectory(for month: Date) -> URL {
+    func globalSourceDirectory() -> URL {
         knowledgeDirectory
             .appendingPathComponent("editorial-sources", isDirectory: true)
+    }
+
+    func sourceDirectory(for month: Date) -> URL {
+        globalSourceDirectory()
             .appendingPathComponent(monthPathComponent(for: month), isDirectory: true)
+    }
+
+    private func sourceManifests(for month: Date) throws -> [EditorialSourceManifestEntry] {
+        let globalDirectory = globalSourceDirectory()
+        let monthDirectory = sourceDirectory(for: month)
+        let manifestLocations = [
+            globalDirectory,
+            monthDirectory
+        ]
+
+        return try manifestLocations.flatMap { directory in
+            let manifestURL = directory.appendingPathComponent("sources.json", isDirectory: false)
+
+            guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+                return [EditorialSourceManifestEntry]()
+            }
+
+            let manifest = try JSONDecoder().decode(
+                EditorialSourceManifest.self,
+                from: Data(contentsOf: manifestURL)
+            )
+
+            return manifest.sources.map {
+                EditorialSourceManifestEntry(
+                    descriptor: $0,
+                    directory: directory
+                )
+            }
+        }
     }
 
     private func fileDocument(
@@ -183,4 +208,9 @@ struct EditorialSourceDocumentSource: Sendable {
 
         return result
     }
+}
+
+private struct EditorialSourceManifestEntry: Sendable {
+    let descriptor: EditorialSourceDescriptor
+    let directory: URL
 }
