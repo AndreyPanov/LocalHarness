@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import HarnessCore
+@testable import MetalCrawlerCore
 
 private let liveLLMTestsEnabled = ProcessInfo.processInfo.environment["RUN_LIVE_LLM_TESTS"] == "1"
 
@@ -98,7 +98,7 @@ func extractsCandidatesFromBangerTVJuneSourceDocuments() async throws {
     let config = try await LiveLLMTestConfig.load()
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let temp = FileManager.default.temporaryDirectory
-        .appendingPathComponent("local-harness-live-llm-tests", isDirectory: true)
+        .appendingPathComponent("metal-crawler-live-llm-tests", isDirectory: true)
     let context = ResearchContext(
         month: month,
         runID: RunID("live-llm-bangertv"),
@@ -150,7 +150,7 @@ func extractsCandidatesFromInfidelAmsterdamInstagramPosts() async throws {
     let config = try await LiveLLMTestConfig.load()
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let temp = FileManager.default.temporaryDirectory
-        .appendingPathComponent("local-harness-live-llm-tests", isDirectory: true)
+        .appendingPathComponent("metal-crawler-live-llm-tests", isDirectory: true)
     let context = ResearchContext(
         month: month,
         runID: RunID("live-llm-instagram"),
@@ -223,8 +223,8 @@ private struct LiveLLMTestConfig {
 
     static func load() async throws -> LiveLLMTestConfig {
         let env = ProcessInfo.processInfo.environment
-        let baseURL = URL(string: env["LOCAL_HARNESS_LLM_BASE_URL"] ?? "http://127.0.0.1:8081/v1")!
-        let configuredModel = env["LOCAL_HARNESS_LLM_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseURL = URL(string: env["LOCAL_METAL_CRAWLER_LLM_BASE_URL"] ?? "http://127.0.0.1:8081/v1")!
+        let configuredModel = env["LOCAL_METAL_CRAWLER_LLM_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let model = if let configuredModel, !configuredModel.isEmpty {
             configuredModel
         } else {
@@ -234,10 +234,10 @@ private struct LiveLLMTestConfig {
         return LiveLLMTestConfig(
             baseURL: baseURL,
             model: model,
-            temperature: Double(env["LOCAL_HARNESS_LLM_TEMPERATURE"] ?? "0") ?? 0,
-            maxTokens: Int(env["LOCAL_HARNESS_LLM_MAX_TOKENS"] ?? "8192") ?? 8192,
-            requestTimeout: TimeInterval(env["LOCAL_HARNESS_LLM_TIMEOUT"] ?? "300") ?? 300,
-            instagramDocumentLimit: Int(env["LOCAL_HARNESS_INSTAGRAM_DOCUMENT_LIMIT"] ?? "3") ?? 3
+            temperature: Double(env["LOCAL_METAL_CRAWLER_LLM_TEMPERATURE"] ?? "0") ?? 0,
+            maxTokens: Int(env["LOCAL_METAL_CRAWLER_LLM_MAX_TOKENS"] ?? "8192") ?? 8192,
+            requestTimeout: TimeInterval(env["LOCAL_METAL_CRAWLER_LLM_TIMEOUT"] ?? "300") ?? 300,
+            instagramDocumentLimit: Int(env["LOCAL_METAL_CRAWLER_INSTAGRAM_DOCUMENT_LIMIT"] ?? "3") ?? 3
         )
     }
 

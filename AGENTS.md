@@ -2,30 +2,29 @@
 
 ## Purpose
 
-This repository is a Swift package for the Monthly Metal Scout workflow.
-The old generic agent-style harness has been removed; do not reintroduce an autonomous tool-calling loop.
+This repository is a Swift package for the Monthly Metal Crawler workflow.
+The old generic agent-style loop has been removed; do not reintroduce an autonomous tool-calling loop.
 The active product direction is the deterministic monthly metal release pipeline described in `Roadmap.md`.
 
 ## Repository Layout
 
 - `Package.swift`: SwiftPM package definition
-- `Sources/HarnessCore`: core library code
-- `Sources/HarnessCLI`: executable entry point and `scout-metal` command
-- `Tests/LocalHarnessTests`: Swift Testing test suite
-- `Roadmap.md`: product and architecture direction for the metal scouting pipeline
+- `Sources/MetalCrawlerCore`: core library code
+- `Sources/MetalCrawlerCLI`: executable entry point and `crawl-metal` command
+- `Tests/MetalCrawlerTests`: Swift Testing test suite
+- `Roadmap.md`: product and architecture direction for the metal crawling pipeline
 
 ## Current State
 
-- The executable is `harness`.
-- `scout-metal` is the active command.
+- The executable is `metal-crawler`.
+- `crawl-metal` is the active command.
 - The generic `run` command and its agent loop have been removed.
-- The package and target names still use historical `Harness*` names until a separate rename pass.
 
 ## Working Rules
 
 - Prefer small, scoped edits over broad refactors.
-- Follow the existing module split: CLI concerns in `HarnessCLI`, reusable logic in `HarnessCore`, tests in `Tests`.
-- Keep roadmap-aligned work deterministic. Avoid introducing new autonomous tool-calling behavior for the metal scout pipeline.
+- Follow the existing module split: CLI concerns in `MetalCrawlerCLI`, reusable logic in `MetalCrawlerCore`, tests in `Tests`.
+- Keep roadmap-aligned work deterministic. Avoid introducing new autonomous tool-calling behavior for the metal crawler pipeline.
 - Preserve source provenance and structured artifacts when implementing pipeline features.
 - Treat unknown or missing data as `unknown`/not found instead of inventing values.
 
@@ -36,7 +35,7 @@ Use SwiftPM from the repository root.
 ```bash
 swift build
 swift test
-swift run harness scout-metal --month 2026-05
+swift run metal-crawler crawl-metal --month 2026-05
 ```
 
 ## Implementation Guidance
@@ -63,12 +62,12 @@ Probable stage set, based on `Roadmap.md`:
 
 ## Testing Expectations
 
-- Add or update targeted tests for any non-trivial change in `HarnessCore`.
+- Add or update targeted tests for any non-trivial change in `MetalCrawlerCore`.
 - Prefer focused unit tests over broad end-to-end coverage unless the change crosses module boundaries.
 - For CLI changes, verify both parsing and user-visible behavior where practical.
 
 ## Notes For Future Agents
 
 - Read `Roadmap.md` before implementing monthly metal work.
-- Check `Package.swift` and `HarnessCLI.swift` before assuming a command is exposed.
-- Keep documentation aligned with the actual code while the package/target names still carry historical `Harness*` naming.
+- Check `Package.swift` and `MetalCrawlerCLI.swift` before assuming a command is exposed.
+- Keep documentation aligned with the actual code.

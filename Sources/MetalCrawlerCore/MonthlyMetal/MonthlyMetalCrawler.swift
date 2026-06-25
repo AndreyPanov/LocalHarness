@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MonthlyMetalScout: Sendable {
+public struct MonthlyMetalCrawler: Sendable {
     private let runsDirectory: URL
     private let knowledgeDirectory: URL
     private let runIDProvider: @Sendable () -> RunID

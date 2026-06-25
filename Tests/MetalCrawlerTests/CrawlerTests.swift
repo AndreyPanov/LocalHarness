@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import HarnessCore
+@testable import MetalCrawlerCore
 
 @Test func cachedCrawlClientWritesAndReadsCachedMetalArchivesPages() async throws {
     let cacheDirectory = try makeTemporaryDirectory()
@@ -96,7 +96,7 @@ private actor CountingCrawlClient: CrawlClient {
 
 private func makeTemporaryDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("local-harness-tests", isDirectory: true)
+        .appendingPathComponent("metal-crawler-tests", isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
 
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

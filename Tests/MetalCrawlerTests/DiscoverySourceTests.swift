@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import HarnessCore
+@testable import MetalCrawlerCore
 
 @Test func metalArchivesAdvancedSearchExtractorFindsAlbumURLs() throws {
     let searchJSON = try fixtureString(
@@ -265,7 +265,7 @@ import Testing
     #expect(document.text.contains("Example Album"))
 }
 
-@Test func monthlyMetalScoutWritesCatalogCandidatesAndEditorialDocumentsSeparately() async throws {
+@Test func monthlyMetalCrawlerWritesCatalogCandidatesAndEditorialDocumentsSeparately() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
@@ -301,14 +301,14 @@ import Testing
         ]
     )
 
-    let scout = MonthlyMetalScout(
+    let crawler = MonthlyMetalCrawler(
         runsDirectory: runsDirectory,
         knowledgeDirectory: knowledgeDirectory,
-        runIDProvider: { RunID("test-monthly-metal-scout") },
+        runIDProvider: { RunID("test-monthly-metal-crawler") },
         crawlClientFactory: { _ in DictionaryCrawlClient(pages: [searchURL: searchPage]) }
     )
 
-    let result = try await scout.listCandidates(month: "2025-11")
+    let result = try await crawler.listCandidates(month: "2025-11")
     let lamp = try #require(result.candidates.first {
         $0.bandName == "Lamp of Murmuur"
     })
@@ -317,7 +317,7 @@ import Testing
         encoding: .utf8
     )
 
-    #expect(result.runID == RunID("test-monthly-metal-scout"))
+    #expect(result.runID == RunID("test-monthly-metal-crawler"))
     #expect(FileManager.default.fileExists(atPath: result.runDirectory.path))
     #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
     #expect(FileManager.default.fileExists(atPath: result.potentialCandidatesArtifactURL.path))
@@ -333,7 +333,7 @@ import Testing
     #expect(editorialDocumentsJSON.contains("Editorial Only - Hidden Demo"))
 }
 
-@Test func monthlyMetalScoutWritesPotentialCandidatesFromCatalogAndEditorialExtraction() async throws {
+@Test func monthlyMetalCrawlerWritesPotentialCandidatesFromCatalogAndEditorialExtraction() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
@@ -369,7 +369,7 @@ import Testing
         ]
     )
 
-    let scout = MonthlyMetalScout(
+    let crawler = MonthlyMetalCrawler(
         runsDirectory: runsDirectory,
         knowledgeDirectory: knowledgeDirectory,
         runIDProvider: { RunID("test-monthly-metal-potential") },
@@ -402,7 +402,7 @@ import Testing
         }
     )
 
-    let result = try await scout.listCandidates(
+    let result = try await crawler.listCandidates(
         month: "2025-11",
         editorialExtraction: MonthlyMetalLLMExtractionConfiguration(
             baseURL: URL(string: "http://127.0.0.1:8082/v1")!,
@@ -439,7 +439,7 @@ import Testing
     #expect(editorialExtractionJSON.contains("Editorial Only - Hidden Demo"))
 }
 
-@Test func monthlyMetalScoutListsCatalogCandidatesWithoutFetchingAlbumPages() async throws {
+@Test func monthlyMetalCrawlerListsCatalogCandidatesWithoutFetchingAlbumPages() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
@@ -452,14 +452,14 @@ import Testing
 
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    let scout = MonthlyMetalScout(
+    let crawler = MonthlyMetalCrawler(
         runsDirectory: runsDirectory,
         knowledgeDirectory: knowledgeDirectory,
         runIDProvider: { RunID("test-monthly-metal-list") },
         crawlClientFactory: { _ in DictionaryCrawlClient(pages: [searchURL: searchPage]) }
     )
 
-    let result = try await scout.listCandidates(month: "2025-11")
+    let result = try await crawler.listCandidates(month: "2025-11")
 
     #expect(result.runID == RunID("test-monthly-metal-list"))
     #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
@@ -560,7 +560,7 @@ private func jsonPage(url: URL, fixtureName: String) throws -> CrawledPage {
 
 private func makeTemporaryDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("local-harness-tests", isDirectory: true)
+        .appendingPathComponent("metal-crawler-tests", isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
 
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

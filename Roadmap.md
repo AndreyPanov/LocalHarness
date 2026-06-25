@@ -1,8 +1,8 @@
-# Monthly Metal Release Scout Roadmap
+# Monthly Metal Crawler Roadmap
 
 ## Project Concept
 
-Monthly Metal Release Scout is a deterministic research pipeline for finding metal albums released in a given month, enriching them from trusted sources, checking streaming and purchase availability, and producing a reusable monthly report.
+Monthly Metal Crawler is a deterministic research pipeline for finding metal albums released in a given month, enriching them from trusted sources, checking streaming and purchase availability, and producing a reusable monthly report.
 
 This is not an autonomous agent loop. The system should not let an LLM decide which tools to call. Instead, each pipeline stage has explicit inputs, outputs, source adapters, retry behavior, and saved artifacts.
 
@@ -13,7 +13,7 @@ The LLM is used only near the end to write short summaries from already-collecte
 Target command:
 
 ```bash
-harness scout-metal --month 2026-05
+metal-crawler crawl-metal --month 2026-05
 
 Expected artifacts:
 runs/<run-id>/monthly-metal-releases.md
@@ -64,7 +64,7 @@ The MVP should support partial data. Unknown is better than invented.
 
 # Roadmap
 Phase 1: Local Pipeline Skeleton
-Add a dedicated monthly metal scout command.
+Add a dedicated monthly metal crawler command.
 Create deterministic pipeline stages.
 Save per-run artifacts under runs/<run-id>/.
 Save normalized monthly JSON under knowledge/releases/.
@@ -110,7 +110,7 @@ No silent Spotify mutations.
 
 **Architecture Changes**
 
-The old generic `Harness.run(goal:)` agent loop has been removed. The project is now centered on the deterministic `scout-metal` workflow.
+The old generic agent loop has been removed. The project is now centered on the deterministic `crawl-metal` workflow.
 
 Keep:
 

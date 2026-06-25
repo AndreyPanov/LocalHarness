@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import HarnessCore
+@testable import MetalCrawlerCore
 
 @Test func metalArchivesAlbumExtractorBuildsReleaseCandidate() throws {
     let url = URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!

@@ -4,18 +4,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "LocalHarness",
+    name: "MetalCrawler",
     platforms: [
         .macOS(.v14)
         ],
     products: [
         .library(
-            name: "HarnessCore",
-            targets: ["HarnessCore"]
+            name: "MetalCrawlerCore",
+            targets: ["MetalCrawlerCore"]
         ),
         .executable(
-            name: "harness",
-            targets: ["HarnessCLI"]
+            name: "metal-crawler",
+            targets: ["MetalCrawlerCLI"]
         )
     ],
     dependencies: [
@@ -26,12 +26,12 @@ let package = Package(
         ],
     targets: [
         .target(
-            name: "HarnessCore"
+            name: "MetalCrawlerCore"
         ),
         .executableTarget(
-            name: "HarnessCLI",
+            name: "MetalCrawlerCLI",
             dependencies: [
-                "HarnessCore",
+                "MetalCrawlerCore",
                 .product(
                     name: "ArgumentParser",
                     package: "swift-argument-parser"
@@ -39,8 +39,8 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "LocalHarnessTests",
-            dependencies: ["HarnessCore"],
+            name: "MetalCrawlerTests",
+            dependencies: ["MetalCrawlerCore"],
             resources: [.copy("Fixtures")]
         ),
     ],

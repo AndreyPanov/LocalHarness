@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import HarnessCore
+@testable import MetalCrawlerCore
 
 @Test func localLLMEditorialExtractorRepairsInvalidCandidateJSON() async throws {
     let provider = SequentialStubLLMProvider(responses: [

@@ -1,14 +1,14 @@
 import ArgumentParser
 import Foundation
-import HarnessCore
+import MetalCrawlerCore
 
-struct ScoutMetalCommand: AsyncParsableCommand {
+struct CrawlMetalCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "scout-metal",
-        abstract: "Build a monthly metal release report."
+        commandName: "crawl-metal",
+        abstract: "Build a monthly metal crawler candidate list."
     )
 
-    @Option(help: "Month to scout, formatted as YYYY-MM.")
+    @Option(help: "Month to crawl, formatted as YYYY-MM.")
     var month: String
 
     @Flag(help: "Skip local LLM extraction from editorial source documents.")
@@ -17,7 +17,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
     @Option(help: "OpenAI-compatible local LLM base URL.")
     var llmBaseURL = "http://127.0.0.1:8082/v1"
 
-    @Option(help: "Model name sent to the local LLM server. Defaults to LOCAL_HARNESS_LLM_MODEL or the project default.")
+    @Option(help: "Model name sent to the local LLM server. Defaults to LOCAL_METAL_CRAWLER_LLM_MODEL or the project default.")
     var llmModel: String?
 
     @Option(help: "Temperature for editorial candidate extraction.")
@@ -30,13 +30,13 @@ struct ScoutMetalCommand: AsyncParsableCommand {
     var llmTimeout: Double = 300
 
     func run() async throws {
-        let scout = MonthlyMetalScout()
-        let result = try await scout.listCandidates(
+        let crawler = MonthlyMetalCrawler()
+        let result = try await crawler.listCandidates(
             month: month,
             editorialExtraction: try editorialExtractionConfiguration()
         )
 
-        print("Monthly metal potential candidates for \(month)")
+        print("Monthly metal crawler candidates for \(month)")
         print("Catalog candidates: \(result.candidates.count)")
         print("Potential candidates: \(result.potentialCandidates.count)")
         print("")
@@ -116,7 +116,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
         return MonthlyMetalLLMExtractionConfiguration(
             baseURL: baseURL,
             model: llmModel
-                ?? ProcessInfo.processInfo.environment["LOCAL_HARNESS_LLM_MODEL"]
+                ?? ProcessInfo.processInfo.environment["LOCAL_METAL_CRAWLER_LLM_MODEL"]
                 ?? "Qwen/Qwen3-14B-MLX-4bit",
             temperature: llmTemperature,
             maxTokens: llmMaxTokens,
