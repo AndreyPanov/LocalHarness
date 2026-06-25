@@ -249,7 +249,7 @@ private struct LiveLLMTestConfig {
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode)
         else {
-            throw HarnessError.llmRequestFailed(statusCode: nil, body: body)
+            throw MonthlyMetalError.llmRequestFailed(statusCode: nil, body: body)
         }
 
         let decoded = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
@@ -257,7 +257,7 @@ private struct LiveLLMTestConfig {
         guard let modelID = decoded.data.first?.id,
               !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
-            throw HarnessError.invalidAgentAction("No models returned from \(modelsURL.absoluteString).")
+            throw MonthlyMetalError.invalidOperation("No models returned from \(modelsURL.absoluteString).")
         }
 
         print("[LiveLLM] discovered model from /v1/models: \(modelID)")
@@ -575,10 +575,10 @@ private func normalize(_ value: String) -> String {
 
 private struct FailingLLMFallback: LLMExtractionFallback {
     func extractReleaseCandidate(from page: CrawledPage) async throws -> ReleaseCandidate {
-        throw HarnessError.invalidAgentAction("LLM fallback should not be used.")
+        throw MonthlyMetalError.invalidOperation("LLM fallback should not be used.")
     }
 
     func extractBandcampAvailability(from page: CrawledPage) async throws -> BandcampAvailabilityDraft {
-        throw HarnessError.invalidAgentAction("LLM fallback should not be used.")
+        throw MonthlyMetalError.invalidOperation("LLM fallback should not be used.")
     }
 }

@@ -5,7 +5,7 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
     private let session: URLSession
 
     init(
-        baseURL: URL = URL(string: "http://127.0.0.1:8081/v1")!,
+        baseURL: URL = URL(string: "http://127.0.0.1:8082/v1")!,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL
@@ -34,11 +34,11 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
         let responseBody = String(data: data, encoding: .utf8) ?? ""
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw HarnessError.llmRequestFailed(statusCode: nil, body: responseBody)
+            throw MonthlyMetalError.llmRequestFailed(statusCode: nil, body: responseBody)
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw HarnessError.llmRequestFailed(
+            throw MonthlyMetalError.llmRequestFailed(
                 statusCode: httpResponse.statusCode,
                 body: responseBody
             )
@@ -49,7 +49,7 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
         do {
             decoded = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
         } catch {
-            throw HarnessError.llmRequestFailed(
+            throw MonthlyMetalError.llmRequestFailed(
                 statusCode: httpResponse.statusCode,
                 body: responseBody
             )
@@ -58,7 +58,7 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
         guard let content = decoded.choices.first?.message.content,
               !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
-            throw HarnessError.llmRequestFailed(
+            throw MonthlyMetalError.llmRequestFailed(
                 statusCode: httpResponse.statusCode,
                 body: responseBody
             )

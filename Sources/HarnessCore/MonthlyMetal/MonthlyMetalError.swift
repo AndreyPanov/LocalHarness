@@ -1,9 +1,6 @@
-enum HarnessError: Error, Sendable {
-    case unknownTool(String)
-    case missingToolArgument(toolName: String, argumentName: String)
-    case maxIterationsExceeded(Int)
+enum MonthlyMetalError: Error, Sendable {
     case llmRequestFailed(statusCode: Int?, body: String)
-    case invalidAgentAction(String)
+    case invalidOperation(String)
     case invalidMonth(String)
     case crawlClientNotImplemented(String)
     case invalidCrawlResponse(String)

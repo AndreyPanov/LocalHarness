@@ -110,12 +110,10 @@ No silent Spotify mutations.
 
 **Architecture Changes**
 
-I’d pivot the existing project from `Harness.run(goal:)` as the center toward a pipeline runner.
+The old generic `Harness.run(goal:)` agent loop has been removed. The project is now centered on the deterministic `scout-metal` workflow.
 
 Keep:
 
-- `Run`
-- `RunStore`
 - `LLMProvider`
 - artifact persistence
 - CLI entry point

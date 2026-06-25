@@ -8,8 +8,8 @@ public struct MonthlyMetalLLMExtractionConfiguration: Sendable {
     public let requestTimeout: TimeInterval
 
     public init(
-        baseURL: URL = URL(string: "http://127.0.0.1:8081/v1")!,
-        model: String = "mlx-community/Qwen3.6-35B-A3B-4bit-DWQ",
+        baseURL: URL = URL(string: "http://127.0.0.1:8082/v1")!,
+        model: String = "Qwen/Qwen3-14B-MLX-4bit",
         temperature: Double = 0,
         maxTokens: Int = 8192,
         requestTimeout: TimeInterval = 300

@@ -15,7 +15,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
     var skipEditorialExtraction = false
 
     @Option(help: "OpenAI-compatible local LLM base URL.")
-    var llmBaseURL = "http://127.0.0.1:8081/v1"
+    var llmBaseURL = "http://127.0.0.1:8082/v1"
 
     @Option(help: "Model name sent to the local LLM server. Defaults to LOCAL_HARNESS_LLM_MODEL or the project default.")
     var llmModel: String?
@@ -24,7 +24,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
     var llmTemperature: Double = 0
 
     @Option(help: "Maximum completion tokens for editorial candidate extraction.")
-    var llmMaxTokens: Int = 8192
+    var llmMaxTokens: Int = 4096
 
     @Option(help: "Request timeout in seconds for editorial candidate extraction.")
     var llmTimeout: Double = 300
@@ -117,7 +117,7 @@ struct ScoutMetalCommand: AsyncParsableCommand {
             baseURL: baseURL,
             model: llmModel
                 ?? ProcessInfo.processInfo.environment["LOCAL_HARNESS_LLM_MODEL"]
-                ?? "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+                ?? "Qwen/Qwen3-14B-MLX-4bit",
             temperature: llmTemperature,
             maxTokens: llmMaxTokens,
             requestTimeout: llmTimeout

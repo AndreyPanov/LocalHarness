@@ -2,28 +2,24 @@
 
 ## Purpose
 
-This repository is a Swift package for `LocalHarness`, with two active directions:
-
-1. the current agent-style harness exposed by `harness run <goal>`
-2. a planned deterministic monthly metal release pipeline described in `Roadmap.md`
-
-Agents working in this repo should preserve that distinction. Do not present the roadmap as already implemented.
+This repository is a Swift package for the Monthly Metal Scout workflow.
+The old generic agent-style harness has been removed; do not reintroduce an autonomous tool-calling loop.
+The active product direction is the deterministic monthly metal release pipeline described in `Roadmap.md`.
 
 ## Repository Layout
 
 - `Package.swift`: SwiftPM package definition
 - `Sources/HarnessCore`: core library code
-- `Sources/HarnessCLI`: executable entry point and subcommands
+- `Sources/HarnessCLI`: executable entry point and `scout-metal` command
 - `Tests/LocalHarnessTests`: Swift Testing test suite
 - `Roadmap.md`: product and architecture direction for the metal scouting pipeline
 
 ## Current State
 
 - The executable is `harness`.
-- `run` is wired into the CLI today.
-- `scout-metal` exists as a command type but is not currently registered in `HarnessCLI` and throws `ValidationError("scout-metal is not implemented yet.")`.
-- The existing harness loop is centered on `Harness.run(goal:)`, `AgentReasoner`, and `ToolExecutor`.
-- The roadmap explicitly calls for moving toward deterministic pipeline stages and source adapters.
+- `scout-metal` is the active command.
+- The generic `run` command and its agent loop have been removed.
+- The package and target names still use historical `Harness*` names until a separate rename pass.
 
 ## Working Rules
 
@@ -40,12 +36,6 @@ Use SwiftPM from the repository root.
 ```bash
 swift build
 swift test
-swift run harness run "your goal"
-```
-
-If you wire in `scout-metal`, also verify it with:
-
-```bash
 swift run harness scout-metal --month 2026-05
 ```
 
@@ -57,7 +47,7 @@ When extending the planned metal release workflow:
 - keep integrations behind client/adapter boundaries
 - persist run artifacts under `runs/`
 - persist normalized knowledge under `knowledge/releases/`
-- keep LLM usage limited to summary generation from collected facts
+- keep LLM usage deterministic and bounded to explicit extraction/summarization stages
 
 Probable stage set, based on `Roadmap.md`:
 
@@ -79,6 +69,6 @@ Probable stage set, based on `Roadmap.md`:
 
 ## Notes For Future Agents
 
-- Read `Roadmap.md` before implementing `scout-metal` work.
+- Read `Roadmap.md` before implementing monthly metal work.
 - Check `Package.swift` and `HarnessCLI.swift` before assuming a command is exposed.
-- Keep documentation aligned with the actual code, especially while the repo is between the current harness design and the planned pipeline design.
+- Keep documentation aligned with the actual code while the package/target names still carry historical `Harness*` naming.

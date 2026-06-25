@@ -131,7 +131,7 @@ private actor SequentialStubLLMProviderStorage {
         requestCount += 1
 
         guard !responses.isEmpty else {
-            throw HarnessError.invalidAgentAction("No stub LLM responses remain.")
+            throw MonthlyMetalError.invalidOperation("No stub LLM responses remain.")
         }
 
         return responses.removeFirst()

@@ -405,7 +405,7 @@ import Testing
     let result = try await scout.listCandidates(
         month: "2025-11",
         editorialExtraction: MonthlyMetalLLMExtractionConfiguration(
-            baseURL: URL(string: "http://127.0.0.1:8081/v1")!,
+            baseURL: URL(string: "http://127.0.0.1:8082/v1")!,
             model: "stub-model"
         )
     )
@@ -613,7 +613,7 @@ private struct DictionaryCrawlClient: CrawlClient {
 
     func fetch(_ request: CrawlRequest) async throws -> CrawledPage {
         guard let page = pages[request.url] else {
-            throw HarnessError.invalidCrawlResponse(request.url.absoluteString)
+            throw MonthlyMetalError.invalidCrawlResponse(request.url.absoluteString)
         }
 
         return page
@@ -622,11 +622,11 @@ private struct DictionaryCrawlClient: CrawlClient {
 
 private struct FailingLLMFallback: LLMExtractionFallback {
     func extractReleaseCandidate(from page: CrawledPage) async throws -> ReleaseCandidate {
-        throw HarnessError.invalidAgentAction("LLM fallback should not be used in this test.")
+        throw MonthlyMetalError.invalidOperation("LLM fallback should not be used in this test.")
     }
 
     func extractBandcampAvailability(from page: CrawledPage) async throws -> BandcampAvailabilityDraft {
-        throw HarnessError.invalidAgentAction("LLM fallback should not be used in this test.")
+        throw MonthlyMetalError.invalidOperation("LLM fallback should not be used in this test.")
     }
 }
 

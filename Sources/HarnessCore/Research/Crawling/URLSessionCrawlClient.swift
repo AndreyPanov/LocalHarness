@@ -11,11 +11,11 @@ final class URLSessionCrawlClient: CrawlClient {
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw HarnessError.invalidCrawlResponse(request.url.absoluteString)
+            throw MonthlyMetalError.invalidCrawlResponse(request.url.absoluteString)
         }
         
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw HarnessError.crawlRequestFailed(
+            throw MonthlyMetalError.crawlRequestFailed(
                 url: request.url.absoluteString,
                 statusCode: httpResponse.statusCode
             )

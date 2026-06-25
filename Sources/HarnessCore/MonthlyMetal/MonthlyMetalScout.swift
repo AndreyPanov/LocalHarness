@@ -129,7 +129,7 @@ public struct MonthlyMetalScout: Sendable {
         guard let month = formatter.date(from: rawMonth),
               formatter.string(from: month) == rawMonth
         else {
-            throw HarnessError.invalidMonth(rawMonth)
+            throw MonthlyMetalError.invalidMonth(rawMonth)
         }
 
         return month
@@ -399,10 +399,10 @@ private struct MonthlyMetalEditorialDocumentsArtifact: Encodable {
 
 private struct UnavailableLLMExtractionFallback: LLMExtractionFallback {
     func extractReleaseCandidate(from page: CrawledPage) async throws -> ReleaseCandidate {
-        throw HarnessError.invalidAgentAction("LLM extraction is not used during monthly candidate discovery.")
+        throw MonthlyMetalError.invalidOperation("LLM extraction is not used during monthly candidate discovery.")
     }
 
     func extractBandcampAvailability(from page: CrawledPage) async throws -> BandcampAvailabilityDraft {
-        throw HarnessError.invalidAgentAction("Bandcamp extraction is not used during monthly candidate discovery.")
+        throw MonthlyMetalError.invalidOperation("Bandcamp extraction is not used during monthly candidate discovery.")
     }
 }
