@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import MetalCrawlerCore
 
-@Test func localLLMEditorialExtractorRepairsInvalidCandidateJSON() async throws {
+@Test func localLLMSourceExtractorRepairsInvalidCandidateJSON() async throws {
     let provider = SequentialStubLLMProvider(responses: [
         """
         {
@@ -32,12 +32,12 @@ import Testing
         }
         """
     ])
-    let extractor = LocalLLMEditorialCandidateExtractor(
+    let extractor = LocalLLMSourceCandidateExtractor(
         provider: provider,
         model: "stub-model"
     )
 
-    let result = await extractor.extract(from: editorialDocument())
+    let result = await extractor.extract(from: sourceItem())
 
     #expect(result.errorMessage == nil)
     #expect(result.candidates.count == 1)
@@ -48,7 +48,7 @@ import Testing
     #expect(await provider.requestCount() == 2)
 }
 
-@Test func localLLMEditorialExtractorStoresErrorWhenRepairFailsValidation() async throws {
+@Test func localLLMSourceExtractorStoresErrorWhenRepairFailsValidation() async throws {
     let provider = SequentialStubLLMProvider(responses: [
         """
         {
@@ -77,12 +77,12 @@ import Testing
         }
         """
     ])
-    let extractor = LocalLLMEditorialCandidateExtractor(
+    let extractor = LocalLLMSourceCandidateExtractor(
         provider: provider,
         model: "stub-model"
     )
 
-    let result = await extractor.extract(from: editorialDocument())
+    let result = await extractor.extract(from: sourceItem())
 
     #expect(result.candidates.isEmpty)
     #expect(result.errorMessage?.contains("validation failed after repair") == true)
@@ -91,13 +91,13 @@ import Testing
     #expect(await provider.requestCount() == 2)
 }
 
-private func editorialDocument() -> MonthlyMetalEditorialSourceDocument {
-    MonthlyMetalEditorialSourceDocument(
-        sourceName: "Example editorial source",
-        sourceKind: "ranked_list",
-        sourceURL: URL(string: "https://example.com/editorial"),
-        itemURL: URL(string: "https://example.com/editorial/post"),
-        title: "Example source document",
+private func sourceItem() -> MonthlyMetalSourceItem {
+    MonthlyMetalSourceItem(
+        sourceName: "Example source",
+        sourceKind: "youtube_monthly",
+        sourceURL: URL(string: "https://example.com/source"),
+        itemURL: URL(string: "https://example.com/source/post"),
+        title: "Example source item",
         publishedAt: nil,
         text: "Lamp of Murmuur - The Dreaming Prince in Ecstasy"
     )

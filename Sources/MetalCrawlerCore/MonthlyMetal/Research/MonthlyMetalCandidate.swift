@@ -3,30 +3,27 @@ import Foundation
 public struct MonthlyMetalCandidateListResult: Sendable {
     public let runID: RunID
     public let runDirectory: URL
-    public let candidateArtifactURL: URL
     public let potentialCandidatesArtifactURL: URL
-    public let editorialDocumentsArtifactURL: URL
-    public let editorialExtractionArtifactURL: URL?
-    public let candidates: [MonthlyMetalCandidate]
+    public let sourceItemsArtifactURL: URL
+    public let sourceExtractionArtifactURL: URL?
+    public let sourceItems: [MonthlyMetalSourceItem]
     public let potentialCandidates: [MonthlyMetalCandidate]
 
     public init(
         runID: RunID,
         runDirectory: URL,
-        candidateArtifactURL: URL,
         potentialCandidatesArtifactURL: URL,
-        editorialDocumentsArtifactURL: URL,
-        editorialExtractionArtifactURL: URL? = nil,
-        candidates: [MonthlyMetalCandidate],
+        sourceItemsArtifactURL: URL,
+        sourceExtractionArtifactURL: URL? = nil,
+        sourceItems: [MonthlyMetalSourceItem],
         potentialCandidates: [MonthlyMetalCandidate]
     ) {
         self.runID = runID
         self.runDirectory = runDirectory
-        self.candidateArtifactURL = candidateArtifactURL
         self.potentialCandidatesArtifactURL = potentialCandidatesArtifactURL
-        self.editorialDocumentsArtifactURL = editorialDocumentsArtifactURL
-        self.editorialExtractionArtifactURL = editorialExtractionArtifactURL
-        self.candidates = candidates
+        self.sourceItemsArtifactURL = sourceItemsArtifactURL
+        self.sourceExtractionArtifactURL = sourceExtractionArtifactURL
+        self.sourceItems = sourceItems
         self.potentialCandidates = potentialCandidates
     }
 }

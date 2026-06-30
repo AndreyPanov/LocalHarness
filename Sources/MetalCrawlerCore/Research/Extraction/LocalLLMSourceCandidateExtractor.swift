@@ -1,6 +1,6 @@
 import Foundation
 
-struct LocalLLMEditorialCandidateExtractor: Sendable {
+struct LocalLLMSourceCandidateExtractor: Sendable {
     private let provider: any LLMProvider
     private let model: String
     private let temperature: Double
@@ -18,12 +18,12 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
         self.maxTokens = maxTokens
     }
 
-    func extract(from document: MonthlyMetalEditorialSourceDocument) async -> MonthlyMetalEditorialExtractionResult {
+    func extract(from sourceItem: MonthlyMetalSourceItem) async -> MonthlyMetalSourceExtractionResult {
         do {
             let firstResponse = try await provider.complete(LLMRequest(
                 model: model,
                 systemPrompt: systemPrompt,
-                userPrompt: userPrompt(for: document),
+                userPrompt: userPrompt(for: sourceItem),
                 temperature: temperature,
                 maxTokens: maxTokens
             ))
@@ -31,7 +31,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
             switch Self.validateCandidates(from: firstResponse) {
             case .success(let candidates):
                 return result(
-                    for: document,
+                    for: sourceItem,
                     candidates: candidates,
                     rawResponse: firstResponse,
                     errorMessage: nil
@@ -52,7 +52,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
                 switch Self.validateCandidates(from: repairResponse) {
                 case .success(let candidates):
                     return result(
-                        for: document,
+                        for: sourceItem,
                         candidates: candidates,
                         rawResponse: Self.combinedRawResponse(
                             first: firstResponse,
@@ -63,7 +63,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
 
                 case .failure(let repairFailure):
                     return result(
-                        for: document,
+                        for: sourceItem,
                         candidates: [],
                         rawResponse: Self.combinedRawResponse(
                             first: firstResponse,
@@ -79,7 +79,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
             }
         } catch {
             return result(
-                for: document,
+                for: sourceItem,
                 candidates: [],
                 rawResponse: nil,
                 errorMessage: String(describing: error)
@@ -88,18 +88,18 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
     }
 
     private func result(
-        for document: MonthlyMetalEditorialSourceDocument,
-        candidates: [MonthlyMetalExtractedEditorialCandidate],
+        for sourceItem: MonthlyMetalSourceItem,
+        candidates: [MonthlyMetalExtractedSourceCandidate],
         rawResponse: String?,
         errorMessage: String?
-    ) -> MonthlyMetalEditorialExtractionResult {
-        MonthlyMetalEditorialExtractionResult(
-            sourceName: document.sourceName,
-            sourceKind: document.sourceKind,
-            sourceURL: document.sourceURL,
-            itemURL: document.itemURL,
-            title: document.title,
-            publishedAt: document.publishedAt,
+    ) -> MonthlyMetalSourceExtractionResult {
+        MonthlyMetalSourceExtractionResult(
+            sourceName: sourceItem.sourceName,
+            sourceKind: sourceItem.sourceKind,
+            sourceURL: sourceItem.sourceURL,
+            itemURL: sourceItem.itemURL,
+            title: sourceItem.title,
+            publishedAt: sourceItem.publishedAt,
             candidates: candidates,
             rawResponse: rawResponse,
             errorMessage: errorMessage
@@ -138,16 +138,16 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
         """
     }
 
-    private func userPrompt(for document: MonthlyMetalEditorialSourceDocument) -> String {
+    private func userPrompt(for sourceItem: MonthlyMetalSourceItem) -> String {
         """
         /no_think
 
-        Source title: \(document.title ?? "unknown")
-        Source name: \(document.sourceName)
-        Source kind: \(document.sourceKind)
-        Source URL: \(document.sourceURL?.absoluteString ?? "unknown")
-        Item URL: \(document.itemURL?.absoluteString ?? "unknown")
-        Published at: \(document.publishedAt.map { MonthlyMetalDateFormatter.shared.format($0) } ?? "unknown")
+        Source title: \(sourceItem.title ?? "unknown")
+        Source name: \(sourceItem.sourceName)
+        Source kind: \(sourceItem.sourceKind)
+        Source URL: \(sourceItem.sourceURL?.absoluteString ?? "unknown")
+        Item URL: \(sourceItem.itemURL?.absoluteString ?? "unknown")
+        Published at: \(sourceItem.publishedAt.map { MonthlyMetalDateFormatter.shared.format($0) } ?? "unknown")
 
         BangerTV monthly descriptions usually repeat this block:
         band name
@@ -177,7 +177,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
         Extract every album or release listed in the post caption.
 
         Full description:
-        \(document.text)
+        \(sourceItem.text)
         """
     }
 
@@ -247,7 +247,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
 
     private static func validateCandidates(
         from response: String
-    ) -> Result<[MonthlyMetalExtractedEditorialCandidate], CandidateValidationFailure> {
+    ) -> Result<[MonthlyMetalExtractedSourceCandidate], CandidateValidationFailure> {
         let payload = jsonPayload(from: response)
         let data = Data(payload.utf8)
         let envelope: LLMAlbumCandidateEnvelope
@@ -265,7 +265,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
 
         var issues: [String] = []
         var seen = Set<MonthlyMetalReleaseIdentity>()
-        var candidates: [MonthlyMetalExtractedEditorialCandidate] = []
+        var candidates: [MonthlyMetalExtractedSourceCandidate] = []
 
         for (index, draft) in envelope.candidates.enumerated() {
             let prefix = "candidates[\(index)]"
@@ -311,7 +311,7 @@ struct LocalLLMEditorialCandidateExtractor: Sendable {
                 continue
             }
 
-            candidates.append(MonthlyMetalExtractedEditorialCandidate(
+            candidates.append(MonthlyMetalExtractedSourceCandidate(
                 bandName: bandName,
                 albumTitle: albumTitle,
                 sourceSignal: sourceSignal,

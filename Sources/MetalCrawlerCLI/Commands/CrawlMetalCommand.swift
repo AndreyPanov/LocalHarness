@@ -11,8 +11,8 @@ struct CrawlMetalCommand: AsyncParsableCommand {
     @Option(help: "Month to crawl, formatted as YYYY-MM.")
     var month: String
 
-    @Flag(help: "Skip local LLM extraction from editorial source documents.")
-    var skipEditorialExtraction = false
+    @Flag(help: "Skip local LLM extraction from source items.")
+    var skipSourceExtraction = false
 
     @Option(help: "OpenAI-compatible local LLM base URL.")
     var llmBaseURL = "http://127.0.0.1:8082/v1"
@@ -20,24 +20,24 @@ struct CrawlMetalCommand: AsyncParsableCommand {
     @Option(help: "Model name sent to the local LLM server. Defaults to LOCAL_METAL_CRAWLER_LLM_MODEL or the project default.")
     var llmModel: String?
 
-    @Option(help: "Temperature for editorial candidate extraction.")
+    @Option(help: "Temperature for source candidate extraction.")
     var llmTemperature: Double = 0
 
-    @Option(help: "Maximum completion tokens for editorial candidate extraction.")
+    @Option(help: "Maximum completion tokens for source candidate extraction.")
     var llmMaxTokens: Int = 4096
 
-    @Option(help: "Request timeout in seconds for editorial candidate extraction.")
+    @Option(help: "Request timeout in seconds for source candidate extraction.")
     var llmTimeout: Double = 300
 
     func run() async throws {
         let crawler = MonthlyMetalCrawler()
         let result = try await crawler.listCandidates(
             month: month,
-            editorialExtraction: try editorialExtractionConfiguration()
+            sourceExtraction: try sourceExtractionConfiguration()
         )
 
         print("Monthly metal crawler candidates for \(month)")
-        print("Catalog candidates: \(result.candidates.count)")
+        print("Source items: \(result.sourceItems.count)")
         print("Potential candidates: \(result.potentialCandidates.count)")
         print("")
 
@@ -58,12 +58,6 @@ struct CrawlMetalCommand: AsyncParsableCommand {
                     print("  Release date: \(releaseDateText)")
                 } else {
                     print("  Release date: unknown")
-                }
-
-                if let metalArchivesURL = candidate.metalArchivesURL {
-                    print("  Metal Archives: \(metalArchivesURL.absoluteString)")
-                } else {
-                    print("  Metal Archives: pending enrichment")
                 }
 
                 print("  Sources:")
@@ -95,17 +89,16 @@ struct CrawlMetalCommand: AsyncParsableCommand {
         print("")
         print("Run ID: \(result.runID)")
         print("Run artifacts: \(result.runDirectory.path)")
-        print("Catalog candidate artifact: \(result.candidateArtifactURL.path)")
         print("Potential candidate artifact: \(result.potentialCandidatesArtifactURL.path)")
-        print("Editorial source documents: \(result.editorialDocumentsArtifactURL.path)")
+        print("Source items: \(result.sourceItemsArtifactURL.path)")
 
-        if let editorialExtractionArtifactURL = result.editorialExtractionArtifactURL {
-            print("Editorial extracted candidates: \(editorialExtractionArtifactURL.path)")
+        if let sourceExtractionArtifactURL = result.sourceExtractionArtifactURL {
+            print("Source extracted candidates: \(sourceExtractionArtifactURL.path)")
         }
     }
 
-    private func editorialExtractionConfiguration() throws -> MonthlyMetalLLMExtractionConfiguration? {
-        guard !skipEditorialExtraction else {
+    private func sourceExtractionConfiguration() throws -> MonthlyMetalSourceExtractionConfiguration? {
+        guard !skipSourceExtraction else {
             return nil
         }
 
@@ -113,7 +106,7 @@ struct CrawlMetalCommand: AsyncParsableCommand {
             throw ValidationError("Invalid --llm-base-url: \(llmBaseURL)")
         }
 
-        return MonthlyMetalLLMExtractionConfiguration(
+        return MonthlyMetalSourceExtractionConfiguration(
             baseURL: baseURL,
             model: llmModel
                 ?? ProcessInfo.processInfo.environment["LOCAL_METAL_CRAWLER_LLM_MODEL"]

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MonthlyMetalLLMExtractionConfiguration: Sendable {
+public struct MonthlyMetalSourceExtractionConfiguration: Sendable {
     public let baseURL: URL
     public let model: String
     public let temperature: Double
@@ -22,24 +22,24 @@ public struct MonthlyMetalLLMExtractionConfiguration: Sendable {
     }
 }
 
-public struct MonthlyMetalEditorialExtractionArtifact: Codable, Hashable, Sendable {
+public struct MonthlyMetalSourceExtractionArtifact: Codable, Hashable, Sendable {
     public let month: String
-    public let results: [MonthlyMetalEditorialExtractionResult]
+    public let results: [MonthlyMetalSourceExtractionResult]
 
-    public init(month: String, results: [MonthlyMetalEditorialExtractionResult]) {
+    public init(month: String, results: [MonthlyMetalSourceExtractionResult]) {
         self.month = month
         self.results = results
     }
 }
 
-public struct MonthlyMetalEditorialExtractionResult: Codable, Hashable, Sendable {
+public struct MonthlyMetalSourceExtractionResult: Codable, Hashable, Sendable {
     public let sourceName: String
     public let sourceKind: String
     public let sourceURL: URL?
     public let itemURL: URL?
     public let title: String?
     public let publishedAt: Date?
-    public let candidates: [MonthlyMetalExtractedEditorialCandidate]
+    public let candidates: [MonthlyMetalExtractedSourceCandidate]
     public let rawResponse: String?
     public let errorMessage: String?
 
@@ -50,7 +50,7 @@ public struct MonthlyMetalEditorialExtractionResult: Codable, Hashable, Sendable
         itemURL: URL?,
         title: String?,
         publishedAt: Date?,
-        candidates: [MonthlyMetalExtractedEditorialCandidate],
+        candidates: [MonthlyMetalExtractedSourceCandidate],
         rawResponse: String?,
         errorMessage: String?
     ) {
@@ -66,7 +66,7 @@ public struct MonthlyMetalEditorialExtractionResult: Codable, Hashable, Sendable
     }
 }
 
-public struct MonthlyMetalExtractedEditorialCandidate: Codable, Hashable, Sendable {
+public struct MonthlyMetalExtractedSourceCandidate: Codable, Hashable, Sendable {
     public let bandName: String
     public let albumTitle: String
     public let sourceSignal: String

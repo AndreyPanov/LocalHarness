@@ -5,7 +5,7 @@ public struct MonthlyMetalCrawler: Sendable {
     private let knowledgeDirectory: URL
     private let runIDProvider: @Sendable () -> RunID
     private let crawlClientFactory: @Sendable (URL) -> any CrawlClient
-    private let llmProviderFactory: @Sendable (MonthlyMetalLLMExtractionConfiguration) -> any LLMProvider
+    private let llmProviderFactory: @Sendable (MonthlyMetalSourceExtractionConfiguration) -> any LLMProvider
 
     public init(
         runsDirectory: URL = URL(fileURLWithPath: "runs", isDirectory: true),
@@ -37,7 +37,7 @@ public struct MonthlyMetalCrawler: Sendable {
         knowledgeDirectory: URL,
         runIDProvider: @escaping @Sendable () -> RunID,
         crawlClientFactory: @escaping @Sendable (URL) -> any CrawlClient,
-        llmProviderFactory: @escaping @Sendable (MonthlyMetalLLMExtractionConfiguration) -> any LLMProvider = { configuration in
+        llmProviderFactory: @escaping @Sendable (MonthlyMetalSourceExtractionConfiguration) -> any LLMProvider = { configuration in
             OpenAICompatibleLLMProvider(baseURL: configuration.baseURL)
         }
     ) {
@@ -50,7 +50,7 @@ public struct MonthlyMetalCrawler: Sendable {
 
     public func listCandidates(
         month rawMonth: String,
-        editorialExtraction: MonthlyMetalLLMExtractionConfiguration? = nil
+        sourceExtraction: MonthlyMetalSourceExtractionConfiguration? = nil
     ) async throws -> MonthlyMetalCandidateListResult {
         let month = try parseMonth(rawMonth)
         let runID = runIDProvider()
@@ -70,37 +70,25 @@ public struct MonthlyMetalCrawler: Sendable {
             knowledgeDirectory: knowledgeDirectory
         )
 
-        let candidatePoolBuilder = MonthlyMetalCandidatePoolBuilder()
-        let candidates = try await candidatePoolBuilder.candidates(for: month, context: context)
-        let editorialDocuments = try await EditorialSourceDocumentSource(
+        let sourceItems = try await CrawlSourceItemProvider(
             knowledgeDirectory: knowledgeDirectory
-        ).documents(for: month, context: context)
-        let extractionResults = await extractEditorialCandidatesIfNeeded(
-            documents: editorialDocuments,
-            configuration: editorialExtraction
+        ).sourceItems(for: month, context: context)
+        let extractionResults = await extractSourceCandidatesIfNeeded(
+            sourceItems: sourceItems,
+            configuration: sourceExtraction
         )
-        let potentialCandidates = mergedPotentialCandidates(
-            catalogCandidates: candidates,
-            extractionResults: extractionResults
-        )
-        let candidateArtifactURL = try writeCandidateArtifact(
-            month: rawMonth,
-            candidates: candidates,
-            fileName: "monthly-metal-candidates.json",
-            runDirectory: runDirectory
-        )
-        let potentialCandidatesArtifactURL = try writeCandidateArtifact(
+        let potentialCandidates = potentialCandidates(from: extractionResults)
+        let potentialCandidatesArtifactURL = try writePotentialCandidateArtifact(
             month: rawMonth,
             candidates: potentialCandidates,
-            fileName: "monthly-metal-potential-candidates.json",
             runDirectory: runDirectory
         )
-        let editorialDocumentsArtifactURL = try writeEditorialDocumentsArtifact(
+        let sourceItemsArtifactURL = try writeSourceItemsArtifact(
             month: rawMonth,
-            documents: editorialDocuments,
+            sourceItems: sourceItems,
             runDirectory: runDirectory
         )
-        let editorialExtractionArtifactURL = try writeEditorialExtractionArtifactIfNeeded(
+        let sourceExtractionArtifactURL = try writeSourceExtractionArtifactIfNeeded(
             month: rawMonth,
             extractionResults: extractionResults,
             runDirectory: runDirectory
@@ -109,11 +97,10 @@ public struct MonthlyMetalCrawler: Sendable {
         return MonthlyMetalCandidateListResult(
             runID: runID,
             runDirectory: runDirectory,
-            candidateArtifactURL: candidateArtifactURL,
             potentialCandidatesArtifactURL: potentialCandidatesArtifactURL,
-            editorialDocumentsArtifactURL: editorialDocumentsArtifactURL,
-            editorialExtractionArtifactURL: editorialExtractionArtifactURL,
-            candidates: candidates,
+            sourceItemsArtifactURL: sourceItemsArtifactURL,
+            sourceExtractionArtifactURL: sourceExtractionArtifactURL,
+            sourceItems: sourceItems,
             potentialCandidates: potentialCandidates
         )
     }
@@ -135,17 +122,16 @@ public struct MonthlyMetalCrawler: Sendable {
         return month
     }
 
-    private func writeCandidateArtifact(
+    private func writePotentialCandidateArtifact(
         month: String,
         candidates: [MonthlyMetalCandidate],
-        fileName: String,
         runDirectory: URL
     ) throws -> URL {
         let artifactURL = runDirectory.appendingPathComponent(
-            fileName,
+            "monthly-metal-potential-candidates.json",
             isDirectory: false
         )
-        let artifact = MonthlyMetalCandidateArtifact(
+        let artifact = MonthlyMetalPotentialCandidateArtifact(
             month: month,
             candidates: candidates
         )
@@ -157,18 +143,18 @@ public struct MonthlyMetalCrawler: Sendable {
         return artifactURL
     }
 
-    private func writeEditorialDocumentsArtifact(
+    private func writeSourceItemsArtifact(
         month: String,
-        documents: [MonthlyMetalEditorialSourceDocument],
+        sourceItems: [MonthlyMetalSourceItem],
         runDirectory: URL
     ) throws -> URL {
         let artifactURL = runDirectory.appendingPathComponent(
-            "editorial-source-documents.json",
+            "source-items.json",
             isDirectory: false
         )
-        let artifact = MonthlyMetalEditorialDocumentsArtifact(
+        let artifact = MonthlyMetalSourceItemsArtifact(
             month: month,
-            documents: documents
+            sourceItems: sourceItems
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -178,9 +164,9 @@ public struct MonthlyMetalCrawler: Sendable {
         return artifactURL
     }
 
-    private func writeEditorialExtractionArtifactIfNeeded(
+    private func writeSourceExtractionArtifactIfNeeded(
         month: String,
-        extractionResults: [MonthlyMetalEditorialExtractionResult],
+        extractionResults: [MonthlyMetalSourceExtractionResult],
         runDirectory: URL
     ) throws -> URL? {
         guard !extractionResults.isEmpty else {
@@ -188,10 +174,10 @@ public struct MonthlyMetalCrawler: Sendable {
         }
 
         let artifactURL = runDirectory.appendingPathComponent(
-            "editorial-extracted-candidates.json",
+            "source-extracted-candidates.json",
             isDirectory: false
         )
-        let artifact = MonthlyMetalEditorialExtractionArtifact(
+        let artifact = MonthlyMetalSourceExtractionArtifact(
             month: month,
             results: extractionResults
         )
@@ -203,37 +189,37 @@ public struct MonthlyMetalCrawler: Sendable {
         return artifactURL
     }
 
-    private func extractEditorialCandidatesIfNeeded(
-        documents: [MonthlyMetalEditorialSourceDocument],
-        configuration: MonthlyMetalLLMExtractionConfiguration?
-    ) async -> [MonthlyMetalEditorialExtractionResult] {
+    private func extractSourceCandidatesIfNeeded(
+        sourceItems: [MonthlyMetalSourceItem],
+        configuration: MonthlyMetalSourceExtractionConfiguration?
+    ) async -> [MonthlyMetalSourceExtractionResult] {
         guard let configuration else {
             return []
         }
 
-        let extractor = LocalLLMEditorialCandidateExtractor(
+        let extractor = LocalLLMSourceCandidateExtractor(
             provider: llmProviderFactory(configuration),
             model: configuration.model,
             temperature: configuration.temperature,
             maxTokens: configuration.maxTokens
         )
-        var results: [MonthlyMetalEditorialExtractionResult] = []
+        var results: [MonthlyMetalSourceExtractionResult] = []
 
-        for document in documents where shouldExtractEditorialCandidates(from: document) {
-            results.append(await extractor.extract(from: document))
+        for sourceItem in sourceItems where shouldExtractSourceCandidates(from: sourceItem) {
+            results.append(await extractor.extract(from: sourceItem))
         }
 
         return results
     }
 
-    private func shouldExtractEditorialCandidates(
-        from document: MonthlyMetalEditorialSourceDocument
+    private func shouldExtractSourceCandidates(
+        from sourceItem: MonthlyMetalSourceItem
     ) -> Bool {
-        guard document.sourceKind == "instagram_post" else {
+        guard sourceItem.sourceKind == "instagram_post" else {
             return true
         }
 
-        let text = document.text
+        let text = sourceItem.text
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             .lowercased()
         let albumSignals = [
@@ -259,9 +245,8 @@ public struct MonthlyMetalCrawler: Sendable {
         return albumSignals.contains { text.contains($0) }
     }
 
-    private func mergedPotentialCandidates(
-        catalogCandidates: [MonthlyMetalCandidate],
-        extractionResults: [MonthlyMetalEditorialExtractionResult]
+    private func potentialCandidates(
+        from extractionResults: [MonthlyMetalSourceExtractionResult]
     ) -> [MonthlyMetalCandidate] {
         var candidatesByIdentity: [MonthlyMetalReleaseIdentity: MonthlyMetalCandidate] = [:]
 
@@ -281,22 +266,12 @@ public struct MonthlyMetalCrawler: Sendable {
             }
         }
 
-        for catalogCandidate in catalogCandidates {
-            let identity = identity(for: catalogCandidate)
-
-            guard let existing = candidatesByIdentity[identity] else {
-                continue
-            }
-
-            candidatesByIdentity[identity] = merge(existing, with: catalogCandidate)
-        }
-
         return candidatesByIdentity.values.sorted(by: shouldSortBefore)
     }
 
     private func potentialCandidate(
-        from extractedCandidate: MonthlyMetalExtractedEditorialCandidate,
-        extractionResult: MonthlyMetalEditorialExtractionResult
+        from extractedCandidate: MonthlyMetalExtractedSourceCandidate,
+        extractionResult: MonthlyMetalSourceExtractionResult
     ) -> MonthlyMetalCandidate {
         MonthlyMetalCandidate(
             bandName: extractedCandidate.bandName,
@@ -387,14 +362,14 @@ public struct MonthlyMetalCrawler: Sendable {
     }
 }
 
-private struct MonthlyMetalCandidateArtifact: Encodable {
+private struct MonthlyMetalPotentialCandidateArtifact: Encodable {
     let month: String
     let candidates: [MonthlyMetalCandidate]
 }
 
-private struct MonthlyMetalEditorialDocumentsArtifact: Encodable {
+private struct MonthlyMetalSourceItemsArtifact: Encodable {
     let month: String
-    let documents: [MonthlyMetalEditorialSourceDocument]
+    let sourceItems: [MonthlyMetalSourceItem]
 }
 
 private struct UnavailableLLMExtractionFallback: LLMExtractionFallback {

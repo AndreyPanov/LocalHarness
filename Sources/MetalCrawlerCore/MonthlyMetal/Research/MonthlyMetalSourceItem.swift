@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MonthlyMetalEditorialSourceDocument: Codable, Hashable, Sendable {
+public struct MonthlyMetalSourceItem: Codable, Hashable, Sendable {
     public let sourceName: String
     public let sourceKind: String
     public let sourceURL: URL?

@@ -54,8 +54,8 @@ Spotify write actions must be explicit and optional.
 Source Strategy
 Initial sources:
 
-Release discovery: Metal Archives, MusicBrainz, Bandcamp tags, label feeds, or manual seed import.
-Band metadata: Metal Archives.
+Source crawling: BangerTV YouTube videos and InfidelAmsterdam Instagram posts.
+Context enrichment: Metal Archives after source candidates are extracted.
 Album identity: MusicBrainz, Metal Archives, Spotify search.
 Streaming: Spotify Web API.
 Bandcamp: Bandcamp search / artist pages.

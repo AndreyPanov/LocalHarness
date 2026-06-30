@@ -84,7 +84,7 @@ import Testing
     #expect(entries.first.map { MonthlyMetalDateFormatter.shared.format($0.publishedAt) } == "2026-06-19")
 }
 
-@Test func bangerTVDocumentSourceKeepsFullVideoDescription() async throws {
+@Test func bangerTVSourceItemProviderKeepsFullVideoDescription() async throws {
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let feedURL = URL(string: "https://www.youtube.com/feeds/videos.xml?channel_id=test-channel")!
     let videoURL = URL(string: "https://www.youtube.com/watch?v=DV-Z4kzZMfM")!
@@ -118,31 +118,31 @@ import Testing
         runsDirectory: FileManager.default.temporaryDirectory,
         knowledgeDirectory: FileManager.default.temporaryDirectory
     )
-    let descriptor = EditorialSourceDescriptor(
+    let descriptor = CrawlSourceDescriptor(
         name: "BangerTV",
         kind: "youtube_channel",
         sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
         channelID: "test-channel"
     )
 
-    let documents = try await BangerTVEditorialDocumentSource().documents(
+    let sourceItems = try await BangerTVSourceItemProvider().sourceItems(
         for: month,
         descriptor: descriptor,
         context: context
     )
-    let document = try #require(documents.first)
+    let sourceItem = try #require(sourceItems.first)
 
-    #expect(documents.count == 1)
-    #expect(document.sourceName == "BangerTV")
-    #expect(document.sourceKind == "youtube_album_review")
-    #expect(document.sourceURL == URL(string: "https://www.youtube.com/@BangerTV")!)
-    #expect(document.itemURL == videoURL)
-    #expect(document.title == "KHEMMIS  Khemmis | BangerTV Metal Album Reviews")
-    #expect(document.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-19")
-    #expect(document.text.contains("Mork - Monolitt - June 19th, 2026 - Peaceville Records"))
+    #expect(sourceItems.count == 1)
+    #expect(sourceItem.sourceName == "BangerTV")
+    #expect(sourceItem.sourceKind == "youtube_album_review")
+    #expect(sourceItem.sourceURL == URL(string: "https://www.youtube.com/@BangerTV")!)
+    #expect(sourceItem.itemURL == videoURL)
+    #expect(sourceItem.title == "KHEMMIS  Khemmis | BangerTV Metal Album Reviews")
+    #expect(sourceItem.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-19")
+    #expect(sourceItem.text.contains("Mork - Monolitt - June 19th, 2026 - Peaceville Records"))
 }
 
-@Test func instagramDocumentSourceKeepsFullPostCaptions() async throws {
+@Test func instagramSourceItemProviderKeepsFullPostCaptions() async throws {
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let feedURL = URL(string: "https://www.instagram.com/api/v1/feed/user/infidelamsterdam/username/?count=50")!
     let json = """
@@ -177,31 +177,31 @@ import Testing
         runsDirectory: FileManager.default.temporaryDirectory,
         knowledgeDirectory: FileManager.default.temporaryDirectory
     )
-    let descriptor = EditorialSourceDescriptor(
+    let descriptor = CrawlSourceDescriptor(
         name: "InfidelAmsterdam Instagram",
         kind: "instagram_profile",
         sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,
         username: "infidelamsterdam"
     )
 
-    let documents = try await InstagramProfileEditorialDocumentSource().documents(
+    let sourceItems = try await InstagramProfileSourceItemProvider().sourceItems(
         for: month,
         descriptor: descriptor,
         context: context
     )
-    let document = try #require(documents.first)
+    let sourceItem = try #require(sourceItems.first)
 
-    #expect(documents.count == 1)
-    #expect(document.sourceName == "InfidelAmsterdam Instagram")
-    #expect(document.sourceKind == "instagram_post")
-    #expect(document.itemURL == URL(string: "https://www.instagram.com/p/DZK_hBVsGaZ/")!)
-    #expect(document.title == "Instagram post DZK_hBVsGaZ")
-    #expect(document.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-04")
-    #expect(document.text.contains("New arrivals!"))
-    #expect(document.text.contains("Walg: Walg l"))
+    #expect(sourceItems.count == 1)
+    #expect(sourceItem.sourceName == "InfidelAmsterdam Instagram")
+    #expect(sourceItem.sourceKind == "instagram_post")
+    #expect(sourceItem.itemURL == URL(string: "https://www.instagram.com/p/DZK_hBVsGaZ/")!)
+    #expect(sourceItem.title == "Instagram post DZK_hBVsGaZ")
+    #expect(sourceItem.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-04")
+    #expect(sourceItem.text.contains("New arrivals!"))
+    #expect(sourceItem.text.contains("Walg: Walg l"))
 }
 
-@Test func editorialSourceDocumentSourceLoadsGlobalSourcesWithoutMonthManifest() async throws {
+@Test func crawlSourceItemProviderLoadsGlobalSourcesWithoutMonthManifest() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-05-01"))
@@ -235,7 +235,7 @@ import Testing
 
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try writeGlobalEditorialSource(
+    try writeGlobalCrawlSource(
         knowledgeDirectory: knowledgeDirectory,
         manifest: """
         {
@@ -251,129 +251,126 @@ import Testing
         """
     )
 
-    let documents = try await EditorialSourceDocumentSource(
+    let sourceItems = try await CrawlSourceItemProvider(
         knowledgeDirectory: knowledgeDirectory
-    ).documents(for: month, context: context)
-    let document = try #require(documents.first)
+    ).sourceItems(for: month, context: context)
+    let sourceItem = try #require(sourceItems.first)
 
-    #expect(documents.count == 1)
-    #expect(document.sourceName == "BangerTV")
-    #expect(document.sourceKind == "youtube_monthly")
-    #expect(document.itemURL == videoURL)
-    #expect(document.title == "METAL MONTHLY MAY 2026 | Example Band")
-    #expect(document.text.contains("Example Band"))
-    #expect(document.text.contains("Example Album"))
+    #expect(sourceItems.count == 1)
+    #expect(sourceItem.sourceName == "BangerTV")
+    #expect(sourceItem.sourceKind == "youtube_monthly")
+    #expect(sourceItem.itemURL == videoURL)
+    #expect(sourceItem.title == "METAL MONTHLY MAY 2026 | Example Band")
+    #expect(sourceItem.text.contains("Example Band"))
+    #expect(sourceItem.text.contains("Example Album"))
 }
 
-@Test func monthlyMetalCrawlerWritesCatalogCandidatesAndEditorialDocumentsSeparately() async throws {
+@Test func monthlyMetalCrawlerWritesSourceItemsWithoutExtraction() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
-    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
-    let searchURL = MetalArchivesAdvancedAlbumSearchSource().searchURL(for: month)
-    let searchPage = try jsonPage(
-        url: searchURL,
-        fixtureName: "metal-archives-advanced-album-search-2025-11"
+    let bangerTVFixture = try bangerTVMonthlyFixture(
+        description: """
+        Example Band
+        Example Album
+        Example Label
+        June 6th, 2026
+        https://example.com/example-band
+        """
     )
 
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try writeEditorialSource(
-        month: "2025-11",
+    try writeGlobalCrawlSource(
         knowledgeDirectory: knowledgeDirectory,
         manifest: """
         {
           "sources": [
             {
-              "name": "Example monthly top albums",
-              "kind": "ranked_list",
-              "url": "https://example.com/monthly-top-albums",
-              "file": "top-albums.txt"
+              "name": "BangerTV",
+              "kind": "youtube_channel",
+              "url": "https://www.youtube.com/@BangerTV",
+              "channelID": "test-channel"
             }
           ]
         }
-        """,
-        files: [
-            "top-albums.txt": """
-            1. Lamp of Murmuur - The Dreaming Prince in Ecstasy https://example.com/lamp-review
-            2. Editorial Only - Hidden Demo https://example.com/hidden-demo
-            """
-        ]
+        """
     )
 
     let crawler = MonthlyMetalCrawler(
         runsDirectory: runsDirectory,
         knowledgeDirectory: knowledgeDirectory,
         runIDProvider: { RunID("test-monthly-metal-crawler") },
-        crawlClientFactory: { _ in DictionaryCrawlClient(pages: [searchURL: searchPage]) }
+        crawlClientFactory: { _ in DictionaryCrawlClient(pages: bangerTVFixture.pages) }
     )
 
-    let result = try await crawler.listCandidates(month: "2025-11")
-    let lamp = try #require(result.candidates.first {
-        $0.bandName == "Lamp of Murmuur"
-    })
-    let editorialDocumentsJSON = try String(
-        contentsOf: result.editorialDocumentsArtifactURL,
+    let result = try await crawler.listCandidates(month: "2026-06")
+    let sourceItemsJSON = try String(
+        contentsOf: result.sourceItemsArtifactURL,
         encoding: .utf8
+    )
+    let potentialCandidatesArtifact = try JSONDecoder().decode(
+        TestMonthlyMetalPotentialCandidateArtifact.self,
+        from: Data(contentsOf: result.potentialCandidatesArtifactURL)
     )
 
     #expect(result.runID == RunID("test-monthly-metal-crawler"))
     #expect(FileManager.default.fileExists(atPath: result.runDirectory.path))
-    #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
     #expect(FileManager.default.fileExists(atPath: result.potentialCandidatesArtifactURL.path))
-    #expect(FileManager.default.fileExists(atPath: result.editorialDocumentsArtifactURL.path))
-    #expect(result.candidates.count == 1)
+    #expect(FileManager.default.fileExists(atPath: result.sourceItemsArtifactURL.path))
+    #expect(result.sourceExtractionArtifactURL == nil)
+    #expect(result.sourceItems.count == 1)
     #expect(result.potentialCandidates.isEmpty)
-    #expect(lamp.albumTitle == "The Dreaming Prince in Ecstasy")
-    #expect(lamp.releaseType == "Full-length")
-    #expect(lamp.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
-    #expect(lamp.metalArchivesURL == URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!)
-    #expect(lamp.sources.map(\.name) == ["Metal Archives monthly search"])
-    #expect(editorialDocumentsJSON.contains(#""sourceName" : "Example monthly top albums""#))
-    #expect(editorialDocumentsJSON.contains("Editorial Only - Hidden Demo"))
+    #expect(result.sourceItems.first?.sourceName == "BangerTV")
+    #expect(result.sourceItems.first?.sourceKind == "youtube_monthly")
+    #expect(result.sourceItems.first?.itemURL == bangerTVFixture.videoURL)
+    #expect(sourceItemsJSON.contains(#""sourceName" : "BangerTV""#))
+    #expect(sourceItemsJSON.contains("Example Album"))
+    #expect(potentialCandidatesArtifact.month == "2026-06")
+    #expect(potentialCandidatesArtifact.candidates.isEmpty)
 }
 
-@Test func monthlyMetalCrawlerWritesPotentialCandidatesFromCatalogAndEditorialExtraction() async throws {
+@Test func monthlyMetalCrawlerWritesPotentialCandidatesFromSourceExtraction() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
-    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
-    let searchURL = MetalArchivesAdvancedAlbumSearchSource().searchURL(for: month)
-    let searchPage = try jsonPage(
-        url: searchURL,
-        fixtureName: "metal-archives-advanced-album-search-2025-11"
+    let bangerTVFixture = try bangerTVMonthlyFixture(
+        description: """
+        Lamp of Murmuur
+        The Dreaming Prince in Ecstasy
+        Example Label
+        November 14th, 2025
+
+        Source Only
+        Hidden Demo
+        Example Label
+        November 2025
+        """
     )
 
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try writeEditorialSource(
-        month: "2025-11",
+    try writeGlobalCrawlSource(
         knowledgeDirectory: knowledgeDirectory,
         manifest: """
         {
           "sources": [
             {
-              "name": "Example editorial source",
-              "kind": "ranked_list",
-              "url": "https://example.com/editorial",
-              "file": "editorial.txt"
+              "name": "BangerTV",
+              "kind": "youtube_channel",
+              "url": "https://www.youtube.com/@BangerTV",
+              "channelID": "test-channel"
             }
           ]
         }
-        """,
-        files: [
-            "editorial.txt": """
-            Lamp of Murmuur - The Dreaming Prince in Ecstasy
-            Editorial Only - Hidden Demo
-            """
-        ]
+        """
     )
 
     let crawler = MonthlyMetalCrawler(
         runsDirectory: runsDirectory,
         knowledgeDirectory: knowledgeDirectory,
         runIDProvider: { RunID("test-monthly-metal-potential") },
-        crawlClientFactory: { _ in DictionaryCrawlClient(pages: [searchURL: searchPage]) },
+        crawlClientFactory: { _ in DictionaryCrawlClient(pages: bangerTVFixture.pages) },
         llmProviderFactory: { _ in
             StubLLMProvider(response: """
             {
@@ -388,12 +385,12 @@ import Testing
                   "confidence": 0.8
                 },
                 {
-                  "bandName": "Editorial Only",
+                  "bandName": "Source Only",
                   "albumTitle": "Hidden Demo",
                   "sourceSignal": "mentioned_album",
                   "labelName": "Example Label",
                   "releaseDateText": "November 2025",
-                  "evidence": "Editorial Only - Hidden Demo",
+                  "evidence": "Source Only - Hidden Demo",
                   "confidence": 0.7
                 }
               ]
@@ -403,8 +400,8 @@ import Testing
     )
 
     let result = try await crawler.listCandidates(
-        month: "2025-11",
-        editorialExtraction: MonthlyMetalLLMExtractionConfiguration(
+        month: "2026-06",
+        sourceExtraction: MonthlyMetalSourceExtractionConfiguration(
             baseURL: URL(string: "http://127.0.0.1:8082/v1")!,
             model: "stub-model"
         )
@@ -413,66 +410,30 @@ import Testing
         contentsOf: result.potentialCandidatesArtifactURL,
         encoding: .utf8
     )
-    let editorialExtractionJSON = try String(
-        contentsOf: try #require(result.editorialExtractionArtifactURL),
+    let sourceExtractionJSON = try String(
+        contentsOf: try #require(result.sourceExtractionArtifactURL),
         encoding: .utf8
     )
     let lamp = try #require(result.potentialCandidates.first {
         $0.bandName == "Lamp of Murmuur"
     })
-    let editorialOnly = try #require(result.potentialCandidates.first {
-        $0.bandName == "Editorial Only"
+    let sourceOnly = try #require(result.potentialCandidates.first {
+        $0.bandName == "Source Only"
     })
 
-    #expect(result.candidates.count == 1)
+    #expect(result.sourceItems.count == 1)
     #expect(result.potentialCandidates.count == 2)
-    #expect(lamp.sources.count == 2)
-    #expect(lamp.sources.contains { $0.kind == "metal_archives_catalog" })
-    #expect(lamp.sources.contains { $0.kind == "ranked_list" && $0.signal == "mentioned_album" })
-    #expect(editorialOnly.albumTitle == "Hidden Demo")
-    #expect(editorialOnly.labelName == "Example Label")
-    #expect(editorialOnly.releaseDateText == "November 2025")
-    #expect(editorialOnly.metalArchivesURL == nil)
-    #expect(editorialOnly.sources.first?.confidence == 0.7)
-    #expect(potentialCandidatesJSON.contains("Example editorial source"))
-    #expect(potentialCandidatesJSON.contains("Editorial Only"))
-    #expect(editorialExtractionJSON.contains("Editorial Only - Hidden Demo"))
-}
-
-@Test func monthlyMetalCrawlerListsCatalogCandidatesWithoutFetchingAlbumPages() async throws {
-    let temporaryDirectory = try makeTemporaryDirectory()
-    let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
-    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
-    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
-    let searchURL = MetalArchivesAdvancedAlbumSearchSource().searchURL(for: month)
-    let searchPage = try jsonPage(
-        url: searchURL,
-        fixtureName: "metal-archives-advanced-album-search-2025-11"
-    )
-
-    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
-
-    let crawler = MonthlyMetalCrawler(
-        runsDirectory: runsDirectory,
-        knowledgeDirectory: knowledgeDirectory,
-        runIDProvider: { RunID("test-monthly-metal-list") },
-        crawlClientFactory: { _ in DictionaryCrawlClient(pages: [searchURL: searchPage]) }
-    )
-
-    let result = try await crawler.listCandidates(month: "2025-11")
-
-    #expect(result.runID == RunID("test-monthly-metal-list"))
-    #expect(FileManager.default.fileExists(atPath: result.candidateArtifactURL.path))
-    #expect(FileManager.default.fileExists(atPath: result.potentialCandidatesArtifactURL.path))
-    #expect(FileManager.default.fileExists(atPath: result.editorialDocumentsArtifactURL.path))
-    #expect(result.candidates.count == 1)
-    #expect(result.potentialCandidates.isEmpty)
-    #expect(result.candidates.first?.bandName == "Lamp of Murmuur")
-    #expect(result.candidates.first?.albumTitle == "The Dreaming Prince in Ecstasy")
-    #expect(result.candidates.first?.releaseType == "Full-length")
-    #expect(result.candidates.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
-    #expect(result.candidates.first?.metalArchivesURL == URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!)
-    #expect(result.candidates.first?.sources.first?.name == "Metal Archives monthly search")
+    #expect(lamp.sources.count == 1)
+    #expect(lamp.metalArchivesURL == nil)
+    #expect(lamp.sources.contains { $0.kind == "youtube_monthly" && $0.signal == "mentioned_album" })
+    #expect(sourceOnly.albumTitle == "Hidden Demo")
+    #expect(sourceOnly.labelName == "Example Label")
+    #expect(sourceOnly.releaseDateText == "November 2025")
+    #expect(sourceOnly.metalArchivesURL == nil)
+    #expect(sourceOnly.sources.first?.confidence == 0.7)
+    #expect(potentialCandidatesJSON.contains("BangerTV"))
+    #expect(potentialCandidatesJSON.contains("Source Only"))
+    #expect(sourceExtractionJSON.contains("Source Only - Hidden Demo"))
 }
 
 @Test func metalArchivesDiscoveryReturnsRealAlbumForRequestedMonth() async throws {
@@ -567,12 +528,61 @@ private func makeTemporaryDirectory() throws -> URL {
     return url
 }
 
-private func writeGlobalEditorialSource(
+private struct BangerTVFixture {
+    let videoURL: URL
+    let pages: [URL: CrawledPage]
+}
+
+private func bangerTVMonthlyFixture(description: String) throws -> BangerTVFixture {
+    let feedURL = URL(string: "https://www.youtube.com/feeds/videos.xml?channel_id=test-channel")!
+    let videoID = "monthly-video"
+    let videoURL = URL(string: "https://www.youtube.com/watch?v=\(videoID)")!
+    let feedXML = """
+    <feed>
+      <entry>
+        <yt:videoId>\(videoID)</yt:videoId>
+        <title>METAL MONTHLY JUNE 2026 | Example Band</title>
+        <published>2026-06-03T15:19:20+00:00</published>
+      </entry>
+    </feed>
+    """
+    let playerResponseData = try JSONSerialization.data(
+        withJSONObject: ["videoDetails": ["shortDescription": description]]
+    )
+    let playerResponse = String(data: playerResponseData, encoding: .utf8)!
+    let videoHTML = """
+    <script>
+    var ytInitialPlayerResponse = \(playerResponse);
+    </script>
+    """
+
+    return BangerTVFixture(
+        videoURL: videoURL,
+        pages: [
+            feedURL: CrawledPage(
+                url: feedURL,
+                finalURL: feedURL,
+                title: nil,
+                text: feedXML,
+                html: feedXML
+            ),
+            videoURL: CrawledPage(
+                url: videoURL,
+                finalURL: videoURL,
+                title: nil,
+                text: videoHTML,
+                html: videoHTML
+            )
+        ]
+    )
+}
+
+private func writeGlobalCrawlSource(
     knowledgeDirectory: URL,
     manifest: String
 ) throws {
     let sourceDirectory = knowledgeDirectory
-        .appendingPathComponent("editorial-sources", isDirectory: true)
+        .appendingPathComponent("crawl-sources", isDirectory: true)
 
     try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
     try manifest.write(
@@ -580,32 +590,6 @@ private func writeGlobalEditorialSource(
         atomically: true,
         encoding: .utf8
     )
-}
-
-private func writeEditorialSource(
-    month: String,
-    knowledgeDirectory: URL,
-    manifest: String,
-    files: [String: String]
-) throws {
-    let sourceDirectory = knowledgeDirectory
-        .appendingPathComponent("editorial-sources", isDirectory: true)
-        .appendingPathComponent(month, isDirectory: true)
-
-    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-    try manifest.write(
-        to: sourceDirectory.appendingPathComponent("sources.json", isDirectory: false),
-        atomically: true,
-        encoding: .utf8
-    )
-
-    for (fileName, contents) in files {
-        try contents.write(
-            to: sourceDirectory.appendingPathComponent(fileName, isDirectory: false),
-            atomically: true,
-            encoding: .utf8
-        )
-    }
 }
 
 private struct DictionaryCrawlClient: CrawlClient {
@@ -618,6 +602,11 @@ private struct DictionaryCrawlClient: CrawlClient {
 
         return page
     }
+}
+
+private struct TestMonthlyMetalPotentialCandidateArtifact: Decodable {
+    let month: String
+    let candidates: [MonthlyMetalCandidate]
 }
 
 private struct FailingLLMFallback: LLMExtractionFallback {

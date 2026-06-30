@@ -1,6 +1,6 @@
 import Foundation
 
-struct BangerTVEditorialDocumentSource: Sendable {
+struct BangerTVSourceItemProvider: Sendable {
     private let feedParser: YouTubeRSSFeedParser
     private let videoDescriptionExtractor: YouTubeVideoDescriptionExtractor
 
@@ -12,11 +12,11 @@ struct BangerTVEditorialDocumentSource: Sendable {
         self.videoDescriptionExtractor = videoDescriptionExtractor
     }
 
-    func documents(
+    func sourceItems(
         for month: Date,
-        descriptor: EditorialSourceDescriptor,
+        descriptor: CrawlSourceDescriptor,
         context: ResearchContext
-    ) async throws -> [MonthlyMetalEditorialSourceDocument] {
+    ) async throws -> [MonthlyMetalSourceItem] {
         guard let channelID = descriptor.channelID else {
             return []
         }
@@ -31,7 +31,7 @@ struct BangerTVEditorialDocumentSource: Sendable {
         let entries = feedParser.entries(from: feedPage.html ?? feedPage.text)
             .filter { isRelevant($0, for: month) }
 
-        var documents: [MonthlyMetalEditorialSourceDocument] = []
+        var sourceItems: [MonthlyMetalSourceItem] = []
 
         for entry in entries {
             let videoURL = URL(string: "https://www.youtube.com/watch?v=\(entry.videoID)")!
@@ -44,8 +44,8 @@ struct BangerTVEditorialDocumentSource: Sendable {
             let description = videoDescriptionExtractor.description(from: videoPage.html ?? videoPage.text)
                 ?? videoPage.text
 
-            documents.append(
-                MonthlyMetalEditorialSourceDocument(
+            sourceItems.append(
+                MonthlyMetalSourceItem(
                     sourceName: descriptor.name,
                     sourceKind: sourceKind(for: entry),
                     sourceURL: descriptor.sourceURL,
@@ -57,7 +57,7 @@ struct BangerTVEditorialDocumentSource: Sendable {
             )
         }
 
-        return documents
+        return sourceItems
     }
 
     private func isRelevant(_ entry: YouTubeFeedEntry, for month: Date) -> Bool {

@@ -1,6 +1,6 @@
 import Foundation
 
-struct InstagramProfileEditorialDocumentSource: Sendable {
+struct InstagramProfileSourceItemProvider: Sendable {
     private let feedParser: InstagramFeedParser
     private let maxPages: Int
 
@@ -12,18 +12,18 @@ struct InstagramProfileEditorialDocumentSource: Sendable {
         self.maxPages = maxPages
     }
 
-    func documents(
+    func sourceItems(
         for month: Date,
-        descriptor: EditorialSourceDescriptor,
+        descriptor: CrawlSourceDescriptor,
         context: ResearchContext
-    ) async throws -> [MonthlyMetalEditorialSourceDocument] {
+    ) async throws -> [MonthlyMetalSourceItem] {
         guard let username = descriptor.username else {
             return []
         }
 
         var maxID: String?
         var pageCount = 0
-        var documents: [MonthlyMetalEditorialSourceDocument] = []
+        var sourceItems: [MonthlyMetalSourceItem] = []
         let monthInterval = Self.monthInterval(for: month)
 
         while pageCount < maxPages {
@@ -57,8 +57,8 @@ struct InstagramProfileEditorialDocumentSource: Sendable {
                     continue
                 }
 
-                documents.append(
-                    MonthlyMetalEditorialSourceDocument(
+                sourceItems.append(
+                    MonthlyMetalSourceItem(
                         sourceName: descriptor.name,
                         sourceKind: "instagram_post",
                         sourceURL: descriptor.sourceURL,
@@ -82,7 +82,7 @@ struct InstagramProfileEditorialDocumentSource: Sendable {
             maxID = nextMaxID
         }
 
-        return documents
+        return sourceItems
     }
 
     private func feedURL(username: String, maxID: String?) -> URL {

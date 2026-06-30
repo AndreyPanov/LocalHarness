@@ -5,7 +5,7 @@ import Testing
 private let liveLLMTestsEnabled = ProcessInfo.processInfo.environment["RUN_LIVE_LLM_TESTS"] == "1"
 
 @Suite(.serialized)
-struct LiveLLMEditorialExtractionTests {
+struct LiveLLMSourceExtractionTests {
 @Test(.enabled(if: liveLLMTestsEnabled))
 func serverRespondsToSimplePrompt() async throws {
     let config = try await LiveLLMTestConfig.load()
@@ -94,7 +94,7 @@ func extractsReviewedAlbumAndShoutoutsFromBangerTVReview() async throws {
 }
 
 @Test(.enabled(if: liveLLMTestsEnabled))
-func extractsCandidatesFromBangerTVJuneSourceDocuments() async throws {
+func extractsCandidatesFromBangerTVJuneSourceItems() async throws {
     let config = try await LiveLLMTestConfig.load()
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let temp = FileManager.default.temporaryDirectory
@@ -110,37 +110,37 @@ func extractsCandidatesFromBangerTVJuneSourceDocuments() async throws {
         runsDirectory: temp,
         knowledgeDirectory: temp
     )
-    let descriptor = EditorialSourceDescriptor(
+    let descriptor = CrawlSourceDescriptor(
         name: "BangerTV",
         kind: "youtube_channel",
         sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
         channelID: "UCeUMZ4t3ezEJFhXHJg9rshQ"
     )
-    let documents = try await BangerTVEditorialDocumentSource().documents(
+    let sourceItems = try await BangerTVSourceItemProvider().sourceItems(
         for: month,
         descriptor: descriptor,
         context: context
     )
     var candidates: [LLMAlbumCandidate] = []
 
-    print("[LiveLLM] BangerTV documents count: \(documents.count)")
+    print("[LiveLLM] BangerTV source items count: \(sourceItems.count)")
 
-    for document in documents {
+    for sourceItem in sourceItems {
         candidates.append(contentsOf: try await extractCandidates(
-            description: document.text,
-            sourceTitle: document.title ?? "BangerTV document",
-            sourceKind: document.sourceKind,
-            outputName: LiveLLMOutputWriter.safeFileName(document.title ?? document.sourceKind),
+            description: sourceItem.text,
+            sourceTitle: sourceItem.title ?? "BangerTV source item",
+            sourceKind: sourceItem.sourceKind,
+            outputName: LiveLLMOutputWriter.safeFileName(sourceItem.title ?? sourceItem.sourceKind),
             config: config
         ))
-        print("[LiveLLM] document: \(document.title ?? "untitled")")
-        print("[LiveLLM] kind: \(document.sourceKind)")
-        print("[LiveLLM] text chars: \(document.text.count)")
+        print("[LiveLLM] source item: \(sourceItem.title ?? "untitled")")
+        print("[LiveLLM] kind: \(sourceItem.sourceKind)")
+        print("[LiveLLM] text chars: \(sourceItem.text.count)")
     }
 
-    #expect(documents.count >= 2)
-    #expect(documents.contains { $0.sourceKind == "youtube_monthly" })
-    #expect(documents.contains { $0.sourceKind == "youtube_album_review" })
+    #expect(sourceItems.count >= 2)
+    #expect(sourceItems.contains { $0.sourceKind == "youtube_monthly" })
+    #expect(sourceItems.contains { $0.sourceKind == "youtube_album_review" })
     #expect(candidates.count >= 5)
     #expect(candidates.allSatisfy { !$0.bandName.isEmpty && !$0.albumTitle.isEmpty })
 }
@@ -162,41 +162,41 @@ func extractsCandidatesFromInfidelAmsterdamInstagramPosts() async throws {
         runsDirectory: temp,
         knowledgeDirectory: temp
     )
-    let descriptor = EditorialSourceDescriptor(
+    let descriptor = CrawlSourceDescriptor(
         name: "InfidelAmsterdam Instagram",
         kind: "instagram_profile",
         sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,
         username: "infidelamsterdam"
     )
-    let documents = try await InstagramProfileEditorialDocumentSource(maxPages: 4).documents(
+    let sourceItems = try await InstagramProfileSourceItemProvider(maxPages: 4).sourceItems(
         for: month,
         descriptor: descriptor,
         context: context
     )
-    let albumLikeDocuments = documents.filter(isLikelyInstagramAlbumPost)
-    let limitedDocuments = Array(albumLikeDocuments.prefix(config.instagramDocumentLimit))
+    let albumLikeSourceItems = sourceItems.filter(isLikelyInstagramAlbumPost)
+    let limitedSourceItems = Array(albumLikeSourceItems.prefix(config.instagramSourceItemLimit))
     var candidates: [LLMAlbumCandidate] = []
 
-    print("[LiveLLM] Instagram documents count: \(documents.count)")
-    print("[LiveLLM] Instagram album-like documents count: \(albumLikeDocuments.count)")
-    print("[LiveLLM] Instagram documents sent to LLM: \(limitedDocuments.count)")
+    print("[LiveLLM] Instagram source items count: \(sourceItems.count)")
+    print("[LiveLLM] Instagram album-like source items count: \(albumLikeSourceItems.count)")
+    print("[LiveLLM] Instagram source items sent to LLM: \(limitedSourceItems.count)")
 
-    for document in limitedDocuments {
-        let outputName = LiveLLMOutputWriter.safeFileName(document.title ?? document.sourceKind)
+    for sourceItem in limitedSourceItems {
+        let outputName = LiveLLMOutputWriter.safeFileName(sourceItem.title ?? sourceItem.sourceKind)
         try LiveLLMOutputWriter.writeText(
-            document.text,
+            sourceItem.text,
             fileName: "\(outputName)-caption.txt"
         )
         candidates.append(contentsOf: try await extractCandidates(
-            description: document.text,
-            sourceTitle: document.title ?? "InfidelAmsterdam Instagram post",
-            sourceKind: document.sourceKind,
+            description: sourceItem.text,
+            sourceTitle: sourceItem.title ?? "InfidelAmsterdam Instagram post",
+            sourceKind: sourceItem.sourceKind,
             outputName: outputName,
             config: config
         ))
-        print("[LiveLLM] Instagram document: \(document.title ?? "untitled")")
-        print("[LiveLLM] itemURL: \(document.itemURL?.absoluteString ?? "unknown")")
-        print("[LiveLLM] caption chars: \(document.text.count)")
+        print("[LiveLLM] Instagram source item: \(sourceItem.title ?? "untitled")")
+        print("[LiveLLM] itemURL: \(sourceItem.itemURL?.absoluteString ?? "unknown")")
+        print("[LiveLLM] caption chars: \(sourceItem.text.count)")
     }
 
     print("[LiveLLM] Instagram extracted candidates count: \(candidates.count)")
@@ -205,9 +205,9 @@ func extractsCandidatesFromInfidelAmsterdamInstagramPosts() async throws {
         print("[LiveLLM] signal: \(candidate.sourceSignal ?? "nil")")
     }
 
-    #expect(!documents.isEmpty)
-    #expect(!albumLikeDocuments.isEmpty)
-    #expect(!limitedDocuments.isEmpty)
+    #expect(!sourceItems.isEmpty)
+    #expect(!albumLikeSourceItems.isEmpty)
+    #expect(!limitedSourceItems.isEmpty)
     #expect(!candidates.isEmpty)
     #expect(candidates.allSatisfy { !$0.bandName.isEmpty && !$0.albumTitle.isEmpty })
 }
@@ -219,7 +219,7 @@ private struct LiveLLMTestConfig {
     let temperature: Double
     let maxTokens: Int
     let requestTimeout: TimeInterval
-    let instagramDocumentLimit: Int
+    let instagramSourceItemLimit: Int
 
     static func load() async throws -> LiveLLMTestConfig {
         let env = ProcessInfo.processInfo.environment
@@ -237,7 +237,7 @@ private struct LiveLLMTestConfig {
             temperature: Double(env["LOCAL_METAL_CRAWLER_LLM_TEMPERATURE"] ?? "0") ?? 0,
             maxTokens: Int(env["LOCAL_METAL_CRAWLER_LLM_MAX_TOKENS"] ?? "8192") ?? 8192,
             requestTimeout: TimeInterval(env["LOCAL_METAL_CRAWLER_LLM_TIMEOUT"] ?? "300") ?? 300,
-            instagramDocumentLimit: Int(env["LOCAL_METAL_CRAWLER_INSTAGRAM_DOCUMENT_LIMIT"] ?? "3") ?? 3
+            instagramSourceItemLimit: Int(env["LOCAL_METAL_CRAWLER_INSTAGRAM_ITEM_LIMIT"] ?? "3") ?? 3
         )
     }
 
@@ -379,8 +379,8 @@ private func extractCandidates(
     }
 }
 
-private func isLikelyInstagramAlbumPost(_ document: MonthlyMetalEditorialSourceDocument) -> Bool {
-    let text = document.text
+private func isLikelyInstagramAlbumPost(_ sourceItem: MonthlyMetalSourceItem) -> Bool {
+    let text = sourceItem.text
         .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
         .lowercased()
 
