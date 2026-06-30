@@ -7,6 +7,8 @@ public struct MonthlyMetalCandidateListResult: Sendable {
     public let sourceItemsArtifactURL: URL
     public let sourceExtractionArtifactURL: URL?
     public let sourceItems: [MonthlyMetalSourceItem]
+    public let extractedSourceItemCount: Int
+    public let extractedCandidateMentionCount: Int
     public let potentialCandidates: [MonthlyMetalCandidate]
 
     public init(
@@ -16,6 +18,8 @@ public struct MonthlyMetalCandidateListResult: Sendable {
         sourceItemsArtifactURL: URL,
         sourceExtractionArtifactURL: URL? = nil,
         sourceItems: [MonthlyMetalSourceItem],
+        extractedSourceItemCount: Int,
+        extractedCandidateMentionCount: Int,
         potentialCandidates: [MonthlyMetalCandidate]
     ) {
         self.runID = runID
@@ -24,6 +28,8 @@ public struct MonthlyMetalCandidateListResult: Sendable {
         self.sourceItemsArtifactURL = sourceItemsArtifactURL
         self.sourceExtractionArtifactURL = sourceExtractionArtifactURL
         self.sourceItems = sourceItems
+        self.extractedSourceItemCount = extractedSourceItemCount
+        self.extractedCandidateMentionCount = extractedCandidateMentionCount
         self.potentialCandidates = potentialCandidates
     }
 }

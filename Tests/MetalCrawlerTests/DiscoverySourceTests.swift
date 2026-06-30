@@ -320,6 +320,8 @@ import Testing
     #expect(FileManager.default.fileExists(atPath: result.sourceItemsArtifactURL.path))
     #expect(result.sourceExtractionArtifactURL == nil)
     #expect(result.sourceItems.count == 1)
+    #expect(result.extractedSourceItemCount == 0)
+    #expect(result.extractedCandidateMentionCount == 0)
     #expect(result.potentialCandidates.isEmpty)
     #expect(result.sourceItems.first?.sourceName == "BangerTV")
     #expect(result.sourceItems.first?.sourceKind == "youtube_monthly")
@@ -422,6 +424,8 @@ import Testing
     })
 
     #expect(result.sourceItems.count == 1)
+    #expect(result.extractedSourceItemCount == 1)
+    #expect(result.extractedCandidateMentionCount == 2)
     #expect(result.potentialCandidates.count == 2)
     #expect(lamp.sources.count == 1)
     #expect(lamp.metalArchivesURL == nil)

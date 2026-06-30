@@ -77,6 +77,9 @@ public struct MonthlyMetalCrawler: Sendable {
             sourceItems: sourceItems,
             configuration: sourceExtraction
         )
+        let extractedCandidateMentionCount = extractionResults.reduce(0) { partialResult, result in
+            partialResult + result.candidates.count
+        }
         let potentialCandidates = potentialCandidates(from: extractionResults)
         let potentialCandidatesArtifactURL = try writePotentialCandidateArtifact(
             month: rawMonth,
@@ -101,6 +104,8 @@ public struct MonthlyMetalCrawler: Sendable {
             sourceItemsArtifactURL: sourceItemsArtifactURL,
             sourceExtractionArtifactURL: sourceExtractionArtifactURL,
             sourceItems: sourceItems,
+            extractedSourceItemCount: extractionResults.count,
+            extractedCandidateMentionCount: extractedCandidateMentionCount,
             potentialCandidates: potentialCandidates
         )
     }
