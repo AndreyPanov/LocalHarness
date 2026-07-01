@@ -1,4 +1,5 @@
 import Foundation
+import SocialSourceKit
 import Testing
 @testable import MetalCrawlerCore
 
@@ -24,35 +25,33 @@ import Testing
     #expect(albums.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
 }
 
-@Test func metalArchivesAdvancedSearchSourcePaginatesFiltersAndDeduplicatesAlbumURLs() async throws {
+@Test func metalArchivesAdvancedSearchClientPaginatesFiltersAndDeduplicatesAlbumURLs() async throws {
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01"))
-    let searchSource = MetalArchivesAdvancedAlbumSearchSource(pageSize: 2)
+    let searchSource = MetalArchivesAdvancedAlbumSearchClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [:]),
+        pageSize: 2
+    )
     let firstSearchURL = searchSource.searchURL(for: month, start: 0, pageSize: 2)
     let secondSearchURL = searchSource.searchURL(for: month, start: 2, pageSize: 2)
     let firstSearchQueryItems = try #require(URLComponents(
         url: firstSearchURL,
         resolvingAgainstBaseURL: false
     )?.queryItems)
-
-    let context = ResearchContext(
-        month: month,
-        runID: RunID(),
-        crawlClient: DictionaryCrawlClient(pages: [
-            firstSearchURL: try jsonPage(
+    let source = MetalArchivesAdvancedAlbumSearchClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [
+            firstSearchURL: try jsonSourcePage(
                 url: firstSearchURL,
                 fixtureName: "metal-archives-advanced-album-search-2025-11-page-1"
             ),
-            secondSearchURL: try jsonPage(
+            secondSearchURL: try jsonSourcePage(
                 url: secondSearchURL,
                 fixtureName: "metal-archives-advanced-album-search-2025-11-page-2"
             )
         ]),
-        llmFallback: FailingLLMFallback(),
-        runsDirectory: FileManager.default.temporaryDirectory,
-        knowledgeDirectory: FileManager.default.temporaryDirectory
+        pageSize: 2
     )
 
-    let urls = try await searchSource.albumURLs(for: month, context: context)
+    let urls = try await source.albumURLs(for: month)
 
     #expect(firstSearchQueryItems.filter { $0.name == "releaseType[]" }.map(\.value) == ["1", "5"])
     #expect(urls == [
@@ -118,7 +117,7 @@ import Testing
         runsDirectory: FileManager.default.temporaryDirectory,
         knowledgeDirectory: FileManager.default.temporaryDirectory
     )
-    let descriptor = CrawlSourceDescriptor(
+    let descriptor = MonthlyMetalSourceDescriptor(
         name: "BangerTV",
         kind: "youtube_channel",
         sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
@@ -177,7 +176,7 @@ import Testing
         runsDirectory: FileManager.default.temporaryDirectory,
         knowledgeDirectory: FileManager.default.temporaryDirectory
     )
-    let descriptor = CrawlSourceDescriptor(
+    let descriptor = MonthlyMetalSourceDescriptor(
         name: "InfidelAmsterdam Instagram",
         kind: "instagram_profile",
         sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,
@@ -201,7 +200,7 @@ import Testing
     #expect(sourceItem.text.contains("Walg: Walg l"))
 }
 
-@Test func crawlSourceItemProviderLoadsGlobalSourcesWithoutMonthManifest() async throws {
+@Test func monthlyMetalSourceItemProviderLoadsGlobalSourcesWithoutMonthManifest() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-05-01"))
@@ -235,7 +234,7 @@ import Testing
 
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try writeGlobalCrawlSource(
+    try writeGlobalSourceProvider(
         knowledgeDirectory: knowledgeDirectory,
         manifest: """
         {
@@ -251,7 +250,7 @@ import Testing
         """
     )
 
-    let sourceItems = try await CrawlSourceItemProvider(
+    let sourceItems = try await MonthlyMetalSourceItemProvider(
         knowledgeDirectory: knowledgeDirectory
     ).sourceItems(for: month, context: context)
     let sourceItem = try #require(sourceItems.first)
@@ -281,7 +280,7 @@ import Testing
 
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try writeGlobalCrawlSource(
+    try writeGlobalSourceProvider(
         knowledgeDirectory: knowledgeDirectory,
         manifest: """
         {
@@ -352,7 +351,7 @@ import Testing
 
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-    try writeGlobalCrawlSource(
+    try writeGlobalSourceProvider(
         knowledgeDirectory: knowledgeDirectory,
         manifest: """
         {
@@ -440,67 +439,6 @@ import Testing
     #expect(sourceExtractionJSON.contains("Source Only - Hidden Demo"))
 }
 
-@Test func metalArchivesDiscoveryReturnsRealAlbumForRequestedMonth() async throws {
-    let page = try lampOfMurmuurPage()
-
-    let context = ResearchContext(
-        month: try #require(MonthlyMetalDateFormatter.shared.parse("2025-11-01")),
-        runID: RunID(),
-        crawlClient: DictionaryCrawlClient(pages: [page.url: page]),
-        llmFallback: FailingLLMFallback(),
-        runsDirectory: FileManager.default.temporaryDirectory,
-        knowledgeDirectory: FileManager.default.temporaryDirectory
-    )
-
-    let source = MetalArchivesAlbumDiscoverySource(albumURLs: [page.url])
-    let candidates = try await source.discover(month: context.month, context: context)
-
-    #expect(candidates.count == 1)
-    #expect(candidates.first?.bandName == "Lamp of Murmuur")
-    #expect(candidates.first?.albumTitle == "The Dreaming Prince in Ecstasy")
-    #expect(candidates.first?.releaseDate.map(MonthlyMetalDateFormatter.shared.format) == "2025-11-14")
-    #expect(candidates.first?.sources.first?.name == "metal_archives")
-    #expect(candidates.first?.sources.first?.url == page.finalURL)
-}
-
-@Test func metalArchivesDiscoveryFiltersRealAlbumOutsideRequestedMonth() async throws {
-    let page = try lampOfMurmuurPage()
-
-    let context = ResearchContext(
-        month: try #require(MonthlyMetalDateFormatter.shared.parse("2025-12-01")),
-        runID: RunID(),
-        crawlClient: DictionaryCrawlClient(pages: [page.url: page]),
-        llmFallback: FailingLLMFallback(),
-        runsDirectory: FileManager.default.temporaryDirectory,
-        knowledgeDirectory: FileManager.default.temporaryDirectory
-    )
-
-    let source = MetalArchivesAlbumDiscoverySource(albumURLs: [page.url])
-    let candidates = try await source.discover(month: context.month, context: context)
-
-    #expect(candidates.isEmpty)
-}
-
-private func lampOfMurmuurPage() throws -> CrawledPage {
-    let url = URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!
-    let html = try lampOfMurmuurHTML()
-
-    return CrawledPage(
-        url: url,
-        finalURL: url,
-        title: HTMLTextExtractor.shared.title(from: html),
-        text: HTMLTextExtractor.shared.visibleText(from: html),
-        html: html
-    )
-}
-
-private func lampOfMurmuurHTML() throws -> String {
-    try fixtureString(
-        named: "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives",
-        fileExtension: "html"
-    )
-}
-
 private func fixtureString(named name: String, fileExtension: String) throws -> String {
     let fixtureURL = try #require(Bundle.module.url(
         forResource: name,
@@ -511,13 +449,12 @@ private func fixtureString(named name: String, fileExtension: String) throws -> 
     return try String(contentsOf: fixtureURL, encoding: .utf8)
 }
 
-private func jsonPage(url: URL, fixtureName: String) throws -> CrawledPage {
+private func jsonSourcePage(url: URL, fixtureName: String) throws -> SocialSourcePage {
     let json = try fixtureString(named: fixtureName, fileExtension: "json")
 
-    return CrawledPage(
+    return SocialSourcePage(
         url: url,
         finalURL: url,
-        title: nil,
         text: json,
         html: json
     )
@@ -581,12 +518,12 @@ private func bangerTVMonthlyFixture(description: String) throws -> BangerTVFixtu
     )
 }
 
-private func writeGlobalCrawlSource(
+private func writeGlobalSourceProvider(
     knowledgeDirectory: URL,
     manifest: String
 ) throws {
     let sourceDirectory = knowledgeDirectory
-        .appendingPathComponent("crawl-sources", isDirectory: true)
+        .appendingPathComponent("source-providers", isDirectory: true)
 
     try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
     try manifest.write(
@@ -600,6 +537,18 @@ private struct DictionaryCrawlClient: CrawlClient {
     let pages: [URL: CrawledPage]
 
     func fetch(_ request: CrawlRequest) async throws -> CrawledPage {
+        guard let page = pages[request.url] else {
+            throw MonthlyMetalError.invalidCrawlResponse(request.url.absoluteString)
+        }
+
+        return page
+    }
+}
+
+private struct DictionarySocialSourceFetcher: SocialSourceFetching {
+    let pages: [URL: SocialSourcePage]
+
+    func fetch(_ request: SocialSourceRequest) async throws -> SocialSourcePage {
         guard let page = pages[request.url] else {
             throw MonthlyMetalError.invalidCrawlResponse(request.url.absoluteString)
         }

@@ -1,6 +1,6 @@
 import Foundation
 
-struct CrawlSourceDescriptor: Decodable, Hashable, Sendable {
+struct MonthlyMetalSourceDescriptor: Decodable, Hashable, Sendable {
     let name: String
     let kind: String
     let sourceURL: URL?
@@ -42,25 +42,25 @@ struct CrawlSourceDescriptor: Decodable, Hashable, Sendable {
     }
 }
 
-struct CrawlSourceManifest: Decodable, Sendable {
-    let sources: [CrawlSourceDescriptor]
+struct MonthlyMetalSourceManifest: Decodable, Sendable {
+    let sources: [MonthlyMetalSourceDescriptor]
 
     private enum CodingKeys: CodingKey {
         case sources
     }
 
     init(from decoder: Decoder) throws {
-        if let sources = try? [CrawlSourceDescriptor](from: decoder) {
+        if let sources = try? [MonthlyMetalSourceDescriptor](from: decoder) {
             self.sources = sources
             return
         }
 
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.sources = try container.decode([CrawlSourceDescriptor].self, forKey: .sources)
+        self.sources = try container.decode([MonthlyMetalSourceDescriptor].self, forKey: .sources)
     }
 }
 
-struct CrawlSourceItemProvider: Sendable {
+struct MonthlyMetalSourceItemProvider: Sendable {
     private let knowledgeDirectory: URL
     private let bangerTVSource: BangerTVSourceItemProvider
     private let instagramSource: InstagramProfileSourceItemProvider
@@ -111,7 +111,7 @@ struct CrawlSourceItemProvider: Sendable {
 
     func globalSourceDirectory() -> URL {
         knowledgeDirectory
-            .appendingPathComponent("crawl-sources", isDirectory: true)
+            .appendingPathComponent("source-providers", isDirectory: true)
     }
 
     func sourceDirectory(for month: Date) -> URL {
@@ -119,7 +119,7 @@ struct CrawlSourceItemProvider: Sendable {
             .appendingPathComponent(monthPathComponent(for: month), isDirectory: true)
     }
 
-    private func sourceManifests(for month: Date) throws -> [CrawlSourceManifestEntry] {
+    private func sourceManifests(for month: Date) throws -> [MonthlyMetalSourceManifestEntry] {
         let globalDirectory = globalSourceDirectory()
         let monthDirectory = sourceDirectory(for: month)
         let manifestLocations = [
@@ -131,16 +131,16 @@ struct CrawlSourceItemProvider: Sendable {
             let manifestURL = directory.appendingPathComponent("sources.json", isDirectory: false)
 
             guard FileManager.default.fileExists(atPath: manifestURL.path) else {
-                return [CrawlSourceManifestEntry]()
+                return [MonthlyMetalSourceManifestEntry]()
             }
 
             let manifest = try JSONDecoder().decode(
-                CrawlSourceManifest.self,
+                MonthlyMetalSourceManifest.self,
                 from: Data(contentsOf: manifestURL)
             )
 
             return manifest.sources.map {
-                CrawlSourceManifestEntry(
+                MonthlyMetalSourceManifestEntry(
                     descriptor: $0,
                     directory: directory
                 )
@@ -177,7 +177,7 @@ struct CrawlSourceItemProvider: Sendable {
     }
 }
 
-private struct CrawlSourceManifestEntry: Sendable {
-    let descriptor: CrawlSourceDescriptor
+private struct MonthlyMetalSourceManifestEntry: Sendable {
+    let descriptor: MonthlyMetalSourceDescriptor
     let directory: URL
 }

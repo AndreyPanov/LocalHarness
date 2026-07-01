@@ -20,9 +20,6 @@ import Testing
     #expect(first.title == page.title)
     #expect(first.text == page.text)
     #expect(first.html == page.html)
-    #expect(first.title == "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives")
-    #expect(first.text.contains("Lamp of Murmuur"))
-    #expect(first.text.contains("The Dreaming Prince in Ecstasy"))
     #expect(first.html?.contains(#"id="album_info""#) == true)
 
     #expect(second.url == page.url)
@@ -63,19 +60,6 @@ import Testing
     #expect(await wrapped.fetchCount() == 1)
 }
 
-@Test func htmlTextExtractorReturnsTitleAndVisibleMetalArchivesText() throws {
-    let html = try lampOfMurmuurHTML()
-
-    #expect(HTMLTextExtractor.shared.title(from: html) == "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives")
-
-    let text = HTMLTextExtractor.shared.visibleText(from: html)
-    #expect(text.contains("Lamp of Murmuur"))
-    #expect(text.contains("The Dreaming Prince in Ecstasy"))
-    #expect(text.contains("Release date"))
-    #expect(!text.contains("var URL_SITE"))
-    #expect(!text.contains(".no-js"))
-}
-
 private actor CountingCrawlClient: CrawlClient {
     private let page: CrawledPage
     private var count = 0
@@ -110,8 +94,8 @@ private func lampOfMurmuurPage() throws -> CrawledPage {
     return CrawledPage(
         url: url,
         finalURL: url,
-        title: HTMLTextExtractor.shared.title(from: html),
-        text: HTMLTextExtractor.shared.visibleText(from: html),
+        title: nil,
+        text: html,
         html: html
     )
 }

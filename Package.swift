@@ -10,6 +10,14 @@ let package = Package(
         ],
     products: [
         .library(
+            name: "SocialSourceKit",
+            targets: ["SocialSourceKit"]
+        ),
+        .library(
+            name: "JSONArtifactKit",
+            targets: ["JSONArtifactKit"]
+        ),
+        .library(
             name: "MetalCrawlerCore",
             targets: ["MetalCrawlerCore"]
         ),
@@ -26,7 +34,17 @@ let package = Package(
         ],
     targets: [
         .target(
-            name: "MetalCrawlerCore"
+            name: "SocialSourceKit"
+        ),
+        .target(
+            name: "JSONArtifactKit"
+        ),
+        .target(
+            name: "MetalCrawlerCore",
+            dependencies: [
+                "SocialSourceKit",
+                "JSONArtifactKit"
+            ]
         ),
         .executableTarget(
             name: "MetalCrawlerCLI",
@@ -40,7 +58,11 @@ let package = Package(
         ),
         .testTarget(
             name: "MetalCrawlerTests",
-            dependencies: ["MetalCrawlerCore"],
+            dependencies: [
+                "MetalCrawlerCore",
+                "SocialSourceKit",
+                "JSONArtifactKit"
+            ],
             resources: [.copy("Fixtures")]
         ),
     ],

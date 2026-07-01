@@ -1,4 +1,5 @@
 import Foundation
+import SocialSourceKit
 import Testing
 @testable import MetalCrawlerCore
 
@@ -110,7 +111,7 @@ func extractsCandidatesFromBangerTVJuneSourceItems() async throws {
         runsDirectory: temp,
         knowledgeDirectory: temp
     )
-    let descriptor = CrawlSourceDescriptor(
+    let descriptor = MonthlyMetalSourceDescriptor(
         name: "BangerTV",
         kind: "youtube_channel",
         sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
@@ -162,7 +163,7 @@ func extractsCandidatesFromInfidelAmsterdamInstagramPosts() async throws {
         runsDirectory: temp,
         knowledgeDirectory: temp
     )
-    let descriptor = CrawlSourceDescriptor(
+    let descriptor = MonthlyMetalSourceDescriptor(
         name: "InfidelAmsterdam Instagram",
         kind: "instagram_profile",
         sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,

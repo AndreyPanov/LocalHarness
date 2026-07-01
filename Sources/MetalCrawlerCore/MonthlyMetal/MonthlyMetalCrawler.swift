@@ -1,4 +1,5 @@
 import Foundation
+import JSONArtifactKit
 
 public struct MonthlyMetalCrawler: Sendable {
     private let runsDirectory: URL
@@ -70,7 +71,7 @@ public struct MonthlyMetalCrawler: Sendable {
             knowledgeDirectory: knowledgeDirectory
         )
 
-        let sourceItems = try await CrawlSourceItemProvider(
+        let sourceItems = try await MonthlyMetalSourceItemProvider(
             knowledgeDirectory: knowledgeDirectory
         ).sourceItems(for: month, context: context)
         let extractionResults = await extractSourceCandidatesIfNeeded(
@@ -81,28 +82,20 @@ public struct MonthlyMetalCrawler: Sendable {
             partialResult + result.candidates.count
         }
         let potentialCandidates = potentialCandidates(from: extractionResults)
-        let potentialCandidatesArtifactURL = try writePotentialCandidateArtifact(
-            month: rawMonth,
-            candidates: potentialCandidates,
-            runDirectory: runDirectory
-        )
-        let sourceItemsArtifactURL = try writeSourceItemsArtifact(
+        let artifacts = try writeArtifacts(
             month: rawMonth,
             sourceItems: sourceItems,
-            runDirectory: runDirectory
-        )
-        let sourceExtractionArtifactURL = try writeSourceExtractionArtifactIfNeeded(
-            month: rawMonth,
             extractionResults: extractionResults,
+            potentialCandidates: potentialCandidates,
             runDirectory: runDirectory
         )
 
         return MonthlyMetalCandidateListResult(
             runID: runID,
             runDirectory: runDirectory,
-            potentialCandidatesArtifactURL: potentialCandidatesArtifactURL,
-            sourceItemsArtifactURL: sourceItemsArtifactURL,
-            sourceExtractionArtifactURL: sourceExtractionArtifactURL,
+            potentialCandidatesArtifactURL: artifacts.potentialCandidates,
+            sourceItemsArtifactURL: artifacts.sourceItems,
+            sourceExtractionArtifactURL: artifacts.sourceExtraction,
             sourceItems: sourceItems,
             extractedSourceItemCount: extractionResults.count,
             extractedCandidateMentionCount: extractedCandidateMentionCount,
@@ -127,71 +120,62 @@ public struct MonthlyMetalCrawler: Sendable {
         return month
     }
 
-    private func writePotentialCandidateArtifact(
-        month: String,
-        candidates: [MonthlyMetalCandidate],
-        runDirectory: URL
-    ) throws -> URL {
-        let artifactURL = runDirectory.appendingPathComponent(
-            "monthly-metal-potential-candidates.json",
-            isDirectory: false
-        )
-        let artifact = MonthlyMetalPotentialCandidateArtifact(
-            month: month,
-            candidates: candidates
-        )
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-
-        try encoder.encode(artifact).write(to: artifactURL)
-        return artifactURL
-    }
-
-    private func writeSourceItemsArtifact(
+    private func writeArtifacts(
         month: String,
         sourceItems: [MonthlyMetalSourceItem],
-        runDirectory: URL
-    ) throws -> URL {
-        let artifactURL = runDirectory.appendingPathComponent(
-            "source-items.json",
-            isDirectory: false
-        )
-        let artifact = MonthlyMetalSourceItemsArtifact(
-            month: month,
-            sourceItems: sourceItems
-        )
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-
-        try encoder.encode(artifact).write(to: artifactURL)
-        return artifactURL
-    }
-
-    private func writeSourceExtractionArtifactIfNeeded(
-        month: String,
         extractionResults: [MonthlyMetalSourceExtractionResult],
+        potentialCandidates: [MonthlyMetalCandidate],
         runDirectory: URL
-    ) throws -> URL? {
-        guard !extractionResults.isEmpty else {
-            return nil
+    ) throws -> MonthlyMetalRunArtifacts {
+        let potentialCandidatesURL = try writeArtifact(
+            fileName: "monthly-metal-potential-candidates.json",
+            data: MonthlyMetalPotentialCandidateArtifact(
+                month: month,
+                candidates: potentialCandidates
+            ),
+            runDirectory: runDirectory
+        )
+        let sourceItemsURL = try writeArtifact(
+            fileName: "source-items.json",
+            data: MonthlyMetalSourceItemsArtifact(
+                month: month,
+                sourceItems: sourceItems
+            ),
+            runDirectory: runDirectory
+        )
+        let sourceExtractionURL: URL? = if extractionResults.isEmpty {
+            nil
+        } else {
+            try writeArtifact(
+                fileName: "source-extracted-candidates.json",
+                data: MonthlyMetalSourceExtractionArtifact(
+                    month: month,
+                    results: extractionResults
+                ),
+                runDirectory: runDirectory
+            )
         }
 
-        let artifactURL = runDirectory.appendingPathComponent(
-            "source-extracted-candidates.json",
-            isDirectory: false
+        return MonthlyMetalRunArtifacts(
+            potentialCandidates: potentialCandidatesURL,
+            sourceItems: sourceItemsURL,
+            sourceExtraction: sourceExtractionURL
         )
-        let artifact = MonthlyMetalSourceExtractionArtifact(
-            month: month,
-            results: extractionResults
-        )
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    }
 
-        try encoder.encode(artifact).write(to: artifactURL)
-        return artifactURL
+    private func writeArtifact<T: Encodable>(
+        fileName: String,
+        data: T,
+        runDirectory: URL
+    ) throws -> URL {
+        let jsonArtifactGenerator = JSONArtifactGenerator()
+        let json = try jsonArtifactGenerator.generateJSON(with: fileName, data: data)
+
+        guard jsonArtifactGenerator.write(to: runDirectory, fileName: fileName, data: json) else {
+            throw MonthlyMetalError.invalidOperation("Could not write JSON artifact \(fileName).")
+        }
+
+        return runDirectory.appendingPathComponent(fileName, isDirectory: false)
     }
 
     private func extractSourceCandidatesIfNeeded(
@@ -375,6 +359,12 @@ private struct MonthlyMetalPotentialCandidateArtifact: Encodable {
 private struct MonthlyMetalSourceItemsArtifact: Encodable {
     let month: String
     let sourceItems: [MonthlyMetalSourceItem]
+}
+
+private struct MonthlyMetalRunArtifacts {
+    let potentialCandidates: URL
+    let sourceItems: URL
+    let sourceExtraction: URL?
 }
 
 private struct UnavailableLLMExtractionFallback: LLMExtractionFallback {
