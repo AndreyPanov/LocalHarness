@@ -241,6 +241,99 @@ public struct MetalArchivesAdvancedAlbumSearchResult: Codable, Hashable, Sendabl
     }
 }
 
+/// Review metadata exposed by Metal Archives for an album.
+public struct MetalArchivesReviewSummary: Codable, Hashable, Sendable {
+    public let reviewCount: Int?
+    public let averageScore: Double?
+
+    public init(
+        reviewCount: Int?,
+        averageScore: Double?
+    ) {
+        self.reviewCount = reviewCount
+        self.averageScore = averageScore
+    }
+}
+
+/// Album and band facts collected from Metal Archives for recommendation context.
+public struct MetalArchivesAlbumEnrichment: Codable, Hashable, Sendable {
+    public let bandName: String
+    public let albumTitle: String
+    public let albumURL: URL
+    public let bandURL: URL?
+    public let releaseType: String?
+    public let releaseDate: Date?
+    public let releaseDateText: String?
+    public let labelName: String?
+    public let genre: String?
+    public let lyricalThemes: String?
+    public let fullLengthAlbumCount: Int?
+    public let reviewCount: Int?
+    public let averageReviewScore: Double?
+    public let yearsActive: Int?
+    public let fullTimeMemberCount: Int?
+
+    public init(
+        bandName: String,
+        albumTitle: String,
+        albumURL: URL,
+        bandURL: URL?,
+        releaseType: String?,
+        releaseDate: Date?,
+        releaseDateText: String?,
+        labelName: String?,
+        genre: String?,
+        lyricalThemes: String?,
+        fullLengthAlbumCount: Int?,
+        reviewCount: Int?,
+        averageReviewScore: Double?,
+        yearsActive: Int?,
+        fullTimeMemberCount: Int?
+    ) {
+        self.bandName = bandName
+        self.albumTitle = albumTitle
+        self.albumURL = albumURL
+        self.bandURL = bandURL
+        self.releaseType = releaseType
+        self.releaseDate = releaseDate
+        self.releaseDateText = releaseDateText
+        self.labelName = labelName
+        self.genre = genre
+        self.lyricalThemes = lyricalThemes
+        self.fullLengthAlbumCount = fullLengthAlbumCount
+        self.reviewCount = reviewCount
+        self.averageReviewScore = averageReviewScore
+        self.yearsActive = yearsActive
+        self.fullTimeMemberCount = fullTimeMemberCount
+    }
+}
+
+/// Band-page facts extracted before they are merged into album enrichment.
+public struct MetalArchivesBandEnrichment: Codable, Hashable, Sendable {
+    public let bandURL: URL?
+    public let genre: String?
+    public let lyricalThemes: String?
+    public let yearsActive: Int?
+    public let fullTimeMemberCount: Int?
+    public let discographyURL: URL?
+
+    public init(
+        bandURL: URL?,
+        genre: String?,
+        lyricalThemes: String?,
+        yearsActive: Int?,
+        fullTimeMemberCount: Int?,
+        discographyURL: URL?
+    ) {
+        self.bandURL = bandURL
+        self.genre = genre
+        self.lyricalThemes = lyricalThemes
+        self.yearsActive = yearsActive
+        self.fullTimeMemberCount = fullTimeMemberCount
+        self.discographyURL = discographyURL
+    }
+}
+
 public enum MetalArchivesError: Error, Equatable {
     case missingAlbumHTML(URL)
     case invalidSearchResponse(URL)
@@ -348,6 +441,24 @@ public protocol MetalArchivesAlbumExtracting: Sendable {
     func extractAlbum(from html: String, finalURL: URL?) -> MetalArchivesAlbum?
 }
 
+/// Public interface for strict Metal Archives enrichment parsing.
+public protocol MetalArchivesEnrichmentExtracting: Sendable {
+    /// Extracts album-page enrichment fields, including the linked band URL and review summary.
+    func extractAlbumEnrichment(from page: SocialSourcePage) -> MetalArchivesAlbumEnrichment?
+
+    /// Extracts album-page enrichment fields from raw HTML.
+    func extractAlbumEnrichment(from html: String, finalURL: URL?) -> MetalArchivesAlbumEnrichment?
+
+    /// Extracts band-page enrichment fields such as genre, themes, active years, and current members.
+    func extractBandEnrichment(from page: SocialSourcePage) -> MetalArchivesBandEnrichment?
+
+    /// Extracts band-page enrichment fields from raw HTML.
+    func extractBandEnrichment(from html: String, finalURL: URL?) -> MetalArchivesBandEnrichment?
+
+    /// Counts full-length albums from a Metal Archives discography table response.
+    func fullLengthAlbumCount(fromDiscographyHTML html: String) -> Int?
+}
+
 /// Public interface for querying Metal Archives advanced album search.
 public protocol MetalArchivesAlbumSearching: Sendable {
     /// Returns normalized advanced-search rows for albums released in the given month.
@@ -356,12 +467,39 @@ public protocol MetalArchivesAlbumSearching: Sendable {
     /// Returns only the album URLs from advanced search for albums released in the given month.
     func albumURLs(for month: Date) async throws -> [URL]
 
+    /// Returns normalized advanced-search rows matching the given band and album title.
+    func albums(
+        bandName: String,
+        albumTitle: String,
+        limit: Int
+    ) async throws -> [MetalArchivesAdvancedAlbumSearchResult]
+
     /// Builds the first advanced-search URL for the given month.
     func searchURL(for month: Date) -> URL
 
     /// Builds a paginated advanced-search URL for the given month.
     func searchURL(for month: Date, start: Int, pageSize: Int) -> URL
+
+    /// Builds a paginated advanced-search URL for a band and album title lookup.
+    func searchURL(
+        bandName: String,
+        albumTitle: String,
+        start: Int,
+        pageSize: Int
+    ) -> URL
+}
+
+/// Public interface for resolving and enriching Metal Archives albums.
+public protocol MetalArchivesAlbumEnriching: Sendable {
+    /// Resolves an exact band/album title pair and returns merged album and band facts.
+    func enrichAlbum(
+        bandName: String,
+        albumTitle: String
+    ) async throws -> MetalArchivesAlbumEnrichment?
+
+    /// Fetches and enriches a known Metal Archives album URL.
+    func enrichAlbum(at albumURL: URL) async throws -> MetalArchivesAlbumEnrichment?
 }
 
 /// Single public source-provider interface exposed by this framework.
-public protocol SourceDataProviding: SocialDescriptionProviding, SourceItemProviding, SourceCandidateSignalFiltering, MetalArchivesAlbumExtracting, MetalArchivesAlbumSearching {}
+public protocol SourceDataProviding: SocialDescriptionProviding, SourceItemProviding, SourceCandidateSignalFiltering, MetalArchivesAlbumExtracting, MetalArchivesEnrichmentExtracting, MetalArchivesAlbumSearching, MetalArchivesAlbumEnriching {}

@@ -83,7 +83,9 @@ public struct FileSystem: FileSystemManaging {
         _ type: T.Type,
         from url: URL
     ) throws -> T {
-        try JSONDecoder().decode(type, from: readData(from: url))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(type, from: readData(from: url))
     }
 
     public func writeJSON<T: Encodable>(_ data: T, to url: URL) throws {

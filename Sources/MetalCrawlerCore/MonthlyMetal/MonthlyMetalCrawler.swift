@@ -85,11 +85,18 @@ public struct MonthlyMetalCrawler: Sendable {
             partialResult + result.candidates.count
         }
         let potentialCandidates = potentialCandidates(from: extractionResults)
+        let enrichedCandidates = await enrichPotentialCandidates(
+            potentialCandidates,
+            sourceDataProvider: SourceDataClient(
+                fetcher: CrawlClientSocialSourceFetcher(crawlClient: context.crawlClient)
+            )
+        )
         let artifacts = try writeArtifacts(
             month: rawMonth,
             sourceItems: sourceItems,
             extractionResults: extractionResults,
             potentialCandidates: potentialCandidates,
+            enrichedCandidates: enrichedCandidates,
             runDirectory: runDirectory
         )
 
@@ -97,12 +104,14 @@ public struct MonthlyMetalCrawler: Sendable {
             runID: runID,
             runDirectory: runDirectory,
             potentialCandidatesArtifactURL: artifacts.potentialCandidates,
+            enrichedCandidatesArtifactURL: artifacts.enrichedCandidates,
             sourceItemsArtifactURL: artifacts.sourceItems,
             sourceExtractionArtifactURL: artifacts.sourceExtraction,
             sourceItems: sourceItems,
             extractedSourceItemCount: extractionResults.count,
             extractedCandidateMentionCount: extractedCandidateMentionCount,
-            potentialCandidates: potentialCandidates
+            potentialCandidates: potentialCandidates,
+            enrichedCandidates: enrichedCandidates
         )
     }
 
@@ -128,6 +137,7 @@ public struct MonthlyMetalCrawler: Sendable {
         sourceItems: [MonthlyMetalSourceItem],
         extractionResults: [MonthlyMetalSourceExtractionResult],
         potentialCandidates: [MonthlyMetalCandidate],
+        enrichedCandidates: [MonthlyMetalEnrichedCandidate],
         runDirectory: URL
     ) throws -> MonthlyMetalRunArtifacts {
         let potentialCandidatesURL = try writeArtifact(
@@ -135,6 +145,14 @@ public struct MonthlyMetalCrawler: Sendable {
             data: MonthlyMetalPotentialCandidateArtifact(
                 month: month,
                 candidates: potentialCandidates
+            ),
+            runDirectory: runDirectory
+        )
+        let enrichedCandidatesURL = try writeArtifact(
+            fileName: "monthly-metal-enriched-candidates.json",
+            data: MonthlyMetalEnrichedCandidateArtifact(
+                month: month,
+                candidates: enrichedCandidates
             ),
             runDirectory: runDirectory
         )
@@ -161,6 +179,7 @@ public struct MonthlyMetalCrawler: Sendable {
 
         return MonthlyMetalRunArtifacts(
             potentialCandidates: potentialCandidatesURL,
+            enrichedCandidates: enrichedCandidatesURL,
             sourceItems: sourceItemsURL,
             sourceExtraction: sourceExtractionURL
         )
@@ -198,6 +217,51 @@ public struct MonthlyMetalCrawler: Sendable {
         }
 
         return results
+    }
+
+    private func enrichPotentialCandidates(
+        _ candidates: [MonthlyMetalCandidate],
+        sourceDataProvider: any SourceDataProviding
+    ) async -> [MonthlyMetalEnrichedCandidate] {
+        var enrichedCandidates: [MonthlyMetalEnrichedCandidate] = []
+
+        for candidate in candidates {
+            do {
+                let enrichment = if let metalArchivesURL = candidate.metalArchivesURL {
+                    try await sourceDataProvider.enrichAlbum(at: metalArchivesURL)
+                } else {
+                    try await sourceDataProvider.enrichAlbum(
+                        bandName: candidate.bandName,
+                        albumTitle: candidate.albumTitle
+                    )
+                }
+
+                if let enrichment {
+                    enrichedCandidates.append(MonthlyMetalEnrichedCandidate(
+                        candidate: merge(candidate, with: enrichment),
+                        status: .matched,
+                        metalArchives: enrichment,
+                        errorMessage: nil
+                    ))
+                } else {
+                    enrichedCandidates.append(MonthlyMetalEnrichedCandidate(
+                        candidate: candidate,
+                        status: .notFound,
+                        metalArchives: nil,
+                        errorMessage: nil
+                    ))
+                }
+            } catch {
+                enrichedCandidates.append(MonthlyMetalEnrichedCandidate(
+                    candidate: candidate,
+                    status: .failed,
+                    metalArchives: nil,
+                    errorMessage: String(describing: error)
+                ))
+            }
+        }
+
+        return enrichedCandidates
     }
 
     private func potentialCandidates(
@@ -247,6 +311,22 @@ public struct MonthlyMetalCrawler: Sendable {
                     confidence: extractedCandidate.confidence
                 )
             ]
+        )
+    }
+
+    private func merge(
+        _ candidate: MonthlyMetalCandidate,
+        with enrichment: MetalArchivesAlbumEnrichment
+    ) -> MonthlyMetalCandidate {
+        MonthlyMetalCandidate(
+            bandName: enrichment.bandName,
+            albumTitle: enrichment.albumTitle,
+            releaseType: enrichment.releaseType ?? candidate.releaseType,
+            labelName: enrichment.labelName ?? candidate.labelName,
+            releaseDate: enrichment.releaseDate ?? candidate.releaseDate,
+            releaseDateText: enrichment.releaseDateText ?? candidate.releaseDateText,
+            metalArchivesURL: enrichment.albumURL,
+            sources: candidate.sources
         )
     }
 
@@ -322,6 +402,11 @@ private struct MonthlyMetalPotentialCandidateArtifact: Encodable {
     let candidates: [MonthlyMetalCandidate]
 }
 
+private struct MonthlyMetalEnrichedCandidateArtifact: Encodable {
+    let month: String
+    let candidates: [MonthlyMetalEnrichedCandidate]
+}
+
 private struct MonthlyMetalSourceItemsArtifact: Encodable {
     let month: String
     let sourceItems: [MonthlyMetalSourceItem]
@@ -329,6 +414,7 @@ private struct MonthlyMetalSourceItemsArtifact: Encodable {
 
 private struct MonthlyMetalRunArtifacts {
     let potentialCandidates: URL
+    let enrichedCandidates: URL
     let sourceItems: URL
     let sourceExtraction: URL?
 }

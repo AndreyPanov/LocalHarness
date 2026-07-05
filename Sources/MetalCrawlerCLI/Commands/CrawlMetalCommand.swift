@@ -42,6 +42,7 @@ struct CrawlMetalCommand: AsyncParsableCommand {
         print("Source items extracted: \(result.extractedSourceItemCount)")
         print("Extracted candidate mentions: \(result.extractedCandidateMentionCount)")
         print("Deduplicated potential candidates: \(result.potentialCandidates.count)")
+        print("Metal Archives matches: \(result.enrichedCandidates.filter { $0.status == .matched }.count)")
         print("")
 
         if result.potentialCandidates.isEmpty {
@@ -93,6 +94,7 @@ struct CrawlMetalCommand: AsyncParsableCommand {
         print("Run ID: \(result.runID)")
         print("Run artifacts: \(result.runDirectory.path)")
         print("Potential candidate artifact: \(result.potentialCandidatesArtifactURL.path)")
+        print("Enriched candidate artifact: \(result.enrichedCandidatesArtifactURL.path)")
         print("Source item artifact: \(result.sourceItemsArtifactURL.path)")
 
         if let sourceExtractionArtifactURL = result.sourceExtractionArtifactURL {

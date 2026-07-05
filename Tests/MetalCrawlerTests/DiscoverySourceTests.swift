@@ -62,6 +62,27 @@ import Testing
     ])
 }
 
+@Test func metalArchivesAdvancedSearchClientBuildsBandAndAlbumLookupURL() throws {
+    let source = MetalArchivesAdvancedAlbumSearchClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [:])
+    )
+    let url = source.searchURL(
+        bandName: "Lamp of Murmuur",
+        albumTitle: "The Dreaming Prince in Ecstasy",
+        start: 0,
+        pageSize: 20
+    )
+    let queryItems = try #require(URLComponents(
+        url: url,
+        resolvingAgainstBaseURL: false
+    )?.queryItems)
+
+    #expect(queryItems.first { $0.name == "bandName" }?.value == "Lamp of Murmuur")
+    #expect(queryItems.first { $0.name == "releaseTitle" }?.value == "The Dreaming Prince in Ecstasy")
+    #expect(queryItems.filter { $0.name == "releaseType[]" }.map(\.value) == ["1", "5"])
+    #expect(queryItems.first { $0.name == "iDisplayLength" }?.value == "20")
+}
+
 @Test func bangerTVRSSParserFindsMonthlyAndReviewVideos() throws {
     let xml = """
     <feed>
@@ -426,6 +447,179 @@ import Testing
     #expect(sourceExtractionJSON.contains("Source Only - Hidden Demo"))
 }
 
+@Test func monthlyMetalCrawlerWritesMetalArchivesEnrichedCandidates() async throws {
+    let temporaryDirectory = try makeTemporaryDirectory()
+    let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
+    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
+    let albumURL = URL(string: "https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559")!
+    let bandURL = URL(string: "https://www.metal-archives.com/bands/Lamp_of_Murmuur/3540453255")!
+    let discographyURL = URL(string: "https://www.metal-archives.com/band/discography/id/3540453255/tab/all")!
+    let searchURL = MetalArchivesAdvancedAlbumSearchClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [:])
+    ).searchURL(
+        bandName: "Lamp of Murmuur",
+        albumTitle: "The Dreaming Prince in Ecstasy",
+        start: 0,
+        pageSize: 20
+    )
+    let albumHTML = try fixtureString(
+        named: "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives",
+        fileExtension: "html"
+    )
+    let searchJSON = #"""
+    {
+      "iTotalRecords": 1,
+      "iTotalDisplayRecords": 1,
+      "aaData": [
+        [
+          "<a href=\"https://www.metal-archives.com/bands/Lamp_of_Murmuur/3540453255\">Lamp of Murmuur</a>",
+          "<a href=\"https://www.metal-archives.com/albums/Lamp_of_Murmuur/The_Dreaming_Prince_in_Ecstasy/1369559\">The Dreaming Prince in Ecstasy</a>",
+          "Full-length",
+          "<!-- 2025-11-14 -->November 14th, 2025"
+        ]
+      ]
+    }
+    """#
+    let bandHTML = """
+    <div id="band_info">
+      <dl class="float_left">
+        <dt>Status:</dt><dd>Active</dd>
+        <dt>Formed in:</dt><dd>2019</dd>
+      </dl>
+      <dl class="float_right">
+        <dt>Genre:</dt><dd>Raw Black Metal</dd>
+        <dt>Lyrical themes:</dt><dd>Night, mysticism</dd>
+        <dt>Years active:</dt><dd>2019-present</dd>
+      </dl>
+      <a href="https://www.metal-archives.com/band/discography/id/3540453255/tab/all">Discography</a>
+    </div>
+    <div id="band_tab_members_current">
+      <table class="display line-up">
+        <tr><td><a href="https://www.metal-archives.com/artists/M./1">M.</a></td><td>Everything</td></tr>
+        <tr><td><a href="https://www.metal-archives.com/artists/N./2">N.</a></td><td>Drums</td></tr>
+      </table>
+    </div>
+    """
+    let discographyHTML = """
+    <table class="display discog">
+      <tr><td>Demo I</td><td>Demo</td><td>2019</td></tr>
+      <tr><td>Album I</td><td>Full-length</td><td>2020</td></tr>
+      <tr><td>EP I</td><td>EP</td><td>2021</td></tr>
+      <tr><td>Album II</td><td>Full-length</td><td>2024</td></tr>
+    </table>
+    """
+    let bangerTVFixture = try bangerTVMonthlyFixture(
+        description: """
+        Lamp of Murmuur
+        The Dreaming Prince in Ecstasy
+        November 14th, 2025
+        """
+    )
+    var pages = bangerTVFixture.pages
+
+    pages[searchURL] = CrawledPage(
+        url: searchURL,
+        finalURL: searchURL,
+        title: nil,
+        text: searchJSON,
+        html: searchJSON
+    )
+    pages[albumURL] = CrawledPage(
+        url: albumURL,
+        finalURL: albumURL,
+        title: nil,
+        text: albumHTML,
+        html: albumHTML
+    )
+    pages[bandURL] = CrawledPage(
+        url: bandURL,
+        finalURL: bandURL,
+        title: nil,
+        text: bandHTML,
+        html: bandHTML
+    )
+    pages[discographyURL] = CrawledPage(
+        url: discographyURL,
+        finalURL: discographyURL,
+        title: nil,
+        text: discographyHTML,
+        html: discographyHTML
+    )
+    let crawlPages = pages
+
+    defer { try? FileSystem.shared.removeItem(at: temporaryDirectory) }
+
+    try writeGlobalSourceProvider(
+        knowledgeDirectory: knowledgeDirectory,
+        manifest: """
+        {
+          "sources": [
+            {
+              "name": "BangerTV",
+              "kind": "youtube_channel",
+              "url": "https://www.youtube.com/@BangerTV",
+              "channelID": "test-channel"
+            }
+          ]
+        }
+        """
+    )
+
+    let crawler = MonthlyMetalCrawler(
+        runsDirectory: runsDirectory,
+        knowledgeDirectory: knowledgeDirectory,
+        runIDProvider: { RunID("test-monthly-metal-enrichment") },
+        crawlClientFactory: { _ in DictionaryCrawlClient(pages: crawlPages) },
+        llmProviderFactory: { _ in
+            StubLLMProvider(response: """
+            {
+              "candidates": [
+                {
+                  "bandName": "Lamp of Murmuur",
+                  "albumTitle": "The Dreaming Prince in Ecstasy",
+                  "sourceSignal": "mentioned_album",
+                  "labelName": null,
+                  "releaseDateText": null,
+                  "evidence": "Lamp of Murmuur - The Dreaming Prince in Ecstasy",
+                  "confidence": 0.8
+                }
+              ]
+            }
+            """)
+        }
+    )
+
+    let result = try await crawler.listCandidates(
+        month: "2026-06",
+        sourceExtraction: MonthlyMetalSourceExtractionConfiguration(
+            baseURL: URL(string: "http://127.0.0.1:8082/v1")!,
+            model: "stub-model"
+        )
+    )
+    let enrichedArtifact = try FileSystem.shared.readJSON(
+        TestMonthlyMetalEnrichedCandidateArtifact.self,
+        from: result.enrichedCandidatesArtifactURL
+    )
+    let enrichedJSON = try FileSystem.shared.readText(from: result.enrichedCandidatesArtifactURL)
+    let enriched = try #require(result.enrichedCandidates.first)
+
+    #expect(result.potentialCandidates.count == 1)
+    #expect(result.enrichedCandidates.count == 1)
+    #expect(enriched.status == .matched)
+    #expect(enriched.candidate.metalArchivesURL == albumURL)
+    #expect(enriched.candidate.labelName == "Wolves of Hades")
+    #expect(enriched.metalArchives?.genre == "Raw Black Metal")
+    #expect(enriched.metalArchives?.lyricalThemes == "Night, mysticism")
+    #expect(enriched.metalArchives?.fullLengthAlbumCount == 2)
+    #expect(enriched.metalArchives?.fullTimeMemberCount == 2)
+    #expect(enriched.metalArchives?.reviewCount == 2)
+    #expect(enriched.metalArchives?.averageReviewScore == 92)
+    #expect(enrichedArtifact.month == "2026-06")
+    #expect(enrichedArtifact.candidates.first?.status == .matched)
+    #expect(enrichedJSON.contains(#""status" : "matched""#))
+    #expect(enrichedJSON.contains(#""genre" : "Raw Black Metal""#))
+}
+
 private func fixtureString(named name: String, fileExtension: String) throws -> String {
     let fixtureURL = try #require(Bundle.module.url(
         forResource: name,
@@ -537,6 +731,11 @@ private struct DictionarySocialSourceFetcher: SocialSourceFetching {
 private struct TestMonthlyMetalPotentialCandidateArtifact: Decodable {
     let month: String
     let candidates: [MonthlyMetalCandidate]
+}
+
+private struct TestMonthlyMetalEnrichedCandidateArtifact: Decodable {
+    let month: String
+    let candidates: [MonthlyMetalEnrichedCandidate]
 }
 
 private struct FailingLLMFallback: LLMExtractionFallback {
