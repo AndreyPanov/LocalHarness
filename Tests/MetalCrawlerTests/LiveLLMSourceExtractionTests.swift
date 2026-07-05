@@ -486,20 +486,18 @@ private enum LiveLLMOutputWriter {
     }
 
     static func writePrettyJSON(_ json: String, fileName: String) throws {
-        guard let data = json.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data),
-              JSONSerialization.isValidJSONObject(object)
-        else {
+        do {
+            let url = try FileSystem.shared.writePrettyJSONPayload(
+                json,
+                fileName: fileName,
+                in: outputDirectory()
+            )
+            print("[LiveLLM] wrote: \(url.path)")
+        } catch FileSystemJSONError.invalidJSONPayload {
             try writeText(json, fileName: fileName)
-            return
+        } catch {
+            throw error
         }
-
-        let prettyData = try JSONSerialization.data(
-            withJSONObject: object,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        )
-        let prettyJSON = String(data: prettyData, encoding: .utf8) ?? json
-        try writeText(prettyJSON, fileName: fileName)
     }
 
     static func safeFileName(_ value: String) -> String {

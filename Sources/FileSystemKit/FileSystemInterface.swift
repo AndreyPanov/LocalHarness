@@ -1,5 +1,11 @@
 import Foundation
 
+public enum FileSystemJSONError: Error, Equatable {
+    case invalidJSONFileName(String)
+    case invalidEncodedData
+    case invalidJSONPayload
+}
+
 /// Public interface for creating directories and reading/writing files.
 public protocol FileSystemManaging: Sendable {
     /// System temporary directory.
@@ -33,6 +39,20 @@ public protocol FileSystemManaging: Sendable {
     /// Writes UTF-8 text to `directory/fileName`, creating the directory first.
     @discardableResult
     func writeText(_ text: String, fileName: String, in directory: URL) throws -> URL
+
+    /// Reads and decodes JSON from a file URL.
+    func readJSON<T: Decodable>(_ type: T.Type, from url: URL) throws -> T
+
+    /// Encodes JSON and writes it to a file URL, creating its parent directory first.
+    func writeJSON<T: Encodable>(_ data: T, to url: URL) throws
+
+    /// Encodes JSON and writes it to `directory/fileName`, creating the directory first.
+    @discardableResult
+    func writeJSON<T: Encodable>(_ data: T, fileName: String, in directory: URL) throws -> URL
+
+    /// Formats an existing JSON payload and writes it to `directory/fileName`.
+    @discardableResult
+    func writePrettyJSONPayload(_ json: String, fileName: String, in directory: URL) throws -> URL
 
     /// Returns the URLs inside a directory.
     func contentsOfDirectory(at directory: URL) throws -> [URL]

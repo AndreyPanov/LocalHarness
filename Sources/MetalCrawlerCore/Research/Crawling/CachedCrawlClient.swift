@@ -23,17 +23,12 @@ final class CachedCrawlClient: CrawlClient {
         let cacheURL = cacheDirectory.appendingPathComponent(cacheKey(for: request) + ".json")
 
         if fileSystem.exists(cacheURL) {
-            let data = try fileSystem.readData(from: cacheURL)
-            return try JSONDecoder().decode(CrawledPage.self, from: data)
+            return try fileSystem.readJSON(CrawledPage.self, from: cacheURL)
         }
 
         let page = try await wrapped.fetch(request)
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-
-        let data = try encoder.encode(page)
-        try fileSystem.writeData(data, to: cacheURL)
+        try fileSystem.writeJSON(page, to: cacheURL)
 
         return page
     }

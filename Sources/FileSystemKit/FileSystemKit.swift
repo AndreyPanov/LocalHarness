@@ -79,6 +79,55 @@ public struct FileSystem: FileSystemManaging {
         return url
     }
 
+    public func readJSON<T: Decodable>(
+        _ type: T.Type,
+        from url: URL
+    ) throws -> T {
+        try JSONDecoder().decode(type, from: readData(from: url))
+    }
+
+    public func writeJSON<T: Encodable>(_ data: T, to url: URL) throws {
+        try validateJSONFileName(url.lastPathComponent)
+        try writeData(try encodedJSON(data), to: url)
+    }
+
+    @discardableResult
+    public func writeJSON<T: Encodable>(
+        _ data: T,
+        fileName: String,
+        in directory: URL
+    ) throws -> URL {
+        try validateJSONFileName(fileName)
+        return try writeData(try encodedJSON(data), fileName: fileName, in: directory)
+    }
+
+    @discardableResult
+    public func writePrettyJSONPayload(
+        _ json: String,
+        fileName: String,
+        in directory: URL
+    ) throws -> URL {
+        try validateJSONFileName(fileName)
+
+        guard let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              JSONSerialization.isValidJSONObject(object)
+        else {
+            throw FileSystemJSONError.invalidJSONPayload
+        }
+
+        let prettyData = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
+
+        guard let prettyJSON = String(data: prettyData, encoding: .utf8) else {
+            throw FileSystemJSONError.invalidEncodedData
+        }
+
+        return try writeText(prettyJSON, fileName: fileName, in: directory)
+    }
+
     public func contentsOfDirectory(at directory: URL) throws -> [URL] {
         try FileManager.default.contentsOfDirectory(
             at: directory,
@@ -88,5 +137,20 @@ public struct FileSystem: FileSystemManaging {
 
     public func removeItem(at url: URL) throws {
         try FileManager.default.removeItem(at: url)
+    }
+
+    private func encodedJSON<T: Encodable>(_ data: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(data)
+    }
+
+    private func validateJSONFileName(_ fileName: String) throws {
+        guard fileName.hasSuffix(".json"),
+              !fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw FileSystemJSONError.invalidJSONFileName(fileName)
+        }
     }
 }

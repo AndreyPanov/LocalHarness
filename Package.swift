@@ -14,10 +14,6 @@ let package = Package(
             targets: ["SocialSourceKit"]
         ),
         .library(
-            name: "JSONArtifactKit",
-            targets: ["JSONArtifactKit"]
-        ),
-        .library(
             name: "FileSystemKit",
             targets: ["FileSystemKit"]
         ),
@@ -41,17 +37,12 @@ let package = Package(
             name: "SocialSourceKit"
         ),
         .target(
-            name: "JSONArtifactKit",
-            dependencies: ["FileSystemKit"]
-        ),
-        .target(
             name: "FileSystemKit"
         ),
         .target(
             name: "MetalCrawlerCore",
             dependencies: [
                 "SocialSourceKit",
-                "JSONArtifactKit",
                 "FileSystemKit"
             ]
         ),
@@ -70,7 +61,6 @@ let package = Package(
             dependencies: [
                 "MetalCrawlerCore",
                 "SocialSourceKit",
-                "JSONArtifactKit",
                 "FileSystemKit"
             ],
             resources: [.copy("Fixtures")]

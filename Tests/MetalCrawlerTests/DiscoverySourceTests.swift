@@ -298,9 +298,9 @@ import Testing
 
     let result = try await crawler.listCandidates(month: "2026-06")
     let sourceItemsJSON = try FileSystem.shared.readText(from: result.sourceItemsArtifactURL)
-    let potentialCandidatesArtifact = try JSONDecoder().decode(
+    let potentialCandidatesArtifact = try FileSystem.shared.readJSON(
         TestMonthlyMetalPotentialCandidateArtifact.self,
-        from: FileSystem.shared.readData(from: result.potentialCandidatesArtifactURL)
+        from: result.potentialCandidatesArtifactURL
     )
 
     #expect(result.runID == RunID("test-monthly-metal-crawler"))
@@ -506,7 +506,7 @@ private func writeGlobalSourceProvider(
     let sourceDirectory = knowledgeDirectory
         .appendingPathComponent("source-providers", isDirectory: true)
 
-    try FileSystem.shared.writeText(manifest, fileName: "sources.json", in: sourceDirectory)
+    try FileSystem.shared.writePrettyJSONPayload(manifest, fileName: "sources.json", in: sourceDirectory)
 }
 
 private struct DictionaryCrawlClient: CrawlClient {

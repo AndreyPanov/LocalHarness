@@ -1,6 +1,5 @@
 import Foundation
 import FileSystemKit
-import JSONArtifactKit
 import SocialSourceKit
 
 public struct MonthlyMetalCrawler: Sendable {
@@ -171,14 +170,7 @@ public struct MonthlyMetalCrawler: Sendable {
         data: T,
         runDirectory: URL
     ) throws -> URL {
-        let jsonArtifactGenerator = JSONArtifactGenerator()
-        let json = try jsonArtifactGenerator.generateJSON(with: fileName, data: data)
-
-        guard jsonArtifactGenerator.write(to: runDirectory, fileName: fileName, data: json) else {
-            throw MonthlyMetalError.invalidOperation("Could not write JSON artifact \(fileName).")
-        }
-
-        return runDirectory.appendingPathComponent(fileName, isDirectory: false)
+        try fileSystem.writeJSON(data, fileName: fileName, in: runDirectory)
     }
 
     private func extractSourceCandidatesIfNeeded(
