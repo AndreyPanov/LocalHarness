@@ -1,10 +1,11 @@
 import Foundation
+import FileSystemKit
 import Testing
 @testable import MetalCrawlerCore
 
 @Test func cachedCrawlClientWritesAndReadsCachedMetalArchivesPages() async throws {
     let cacheDirectory = try makeTemporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+    defer { try? FileSystem.shared.removeItem(at: cacheDirectory) }
 
     let page = try lampOfMurmuurPage()
 
@@ -32,7 +33,7 @@ import Testing
 
 @Test func cachedCrawlClientUsesShortFileNamesForLongSearchURLs() async throws {
     let cacheDirectory = try makeTemporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+    defer { try? FileSystem.shared.removeItem(at: cacheDirectory) }
 
     let url = URL(string: "https://www.metal-archives.com/search/ajax-advanced/searching/albums/?releaseYearFrom=2026&releaseMonthFrom=06&releaseYearTo=2026&releaseMonthTo=06&iDisplayStart=0&iDisplayLength=200")!
     let page = CrawledPage(
@@ -52,10 +53,10 @@ import Testing
     _ = try await client.fetch(request)
     _ = try await client.fetch(request)
 
-    let cacheFileNames = try FileManager.default.contentsOfDirectory(atPath: cacheDirectory.path)
-    let cacheFileName = try #require(cacheFileNames.first)
+    let cacheFileURLs = try FileSystem.shared.contentsOfDirectory(at: cacheDirectory)
+    let cacheFileName = try #require(cacheFileURLs.first?.lastPathComponent)
 
-    #expect(cacheFileNames.count == 1)
+    #expect(cacheFileURLs.count == 1)
     #expect(cacheFileName.count < 255)
     #expect(await wrapped.fetchCount() == 1)
 }
@@ -79,12 +80,7 @@ private actor CountingCrawlClient: CrawlClient {
 }
 
 private func makeTemporaryDirectory() throws -> URL {
-    let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("metal-crawler-tests", isDirectory: true)
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
-
-    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    return url
+    try FileSystem.shared.makeTemporaryDirectory(baseName: "metal-crawler-tests")
 }
 
 private func lampOfMurmuurPage() throws -> CrawledPage {
@@ -107,5 +103,5 @@ private func lampOfMurmuurHTML() throws -> String {
         subdirectory: "Fixtures"
     ))
 
-    return try String(contentsOf: fixtureURL, encoding: .utf8)
+    return try FileSystem.shared.readText(from: fixtureURL)
 }

@@ -1,4 +1,5 @@
 import Foundation
+import FileSystemKit
 import SocialSourceKit
 
 struct MonthlyMetalSourceManifest: Decodable, Sendable {
@@ -22,6 +23,7 @@ struct MonthlyMetalSourceManifest: Decodable, Sendable {
 struct MonthlyMetalSourceItemProvider: Sendable {
     private let knowledgeDirectory: URL
     private let sourceDataProviderFactory: @Sendable (any CrawlClient) -> any SourceDataProviding
+    private let fileSystem: any FileSystemManaging
 
     init(
         knowledgeDirectory: URL,
@@ -29,10 +31,12 @@ struct MonthlyMetalSourceItemProvider: Sendable {
             SourceDataClient(
                 fetcher: CrawlClientSocialSourceFetcher(crawlClient: crawlClient)
             )
-        }
+        },
+        fileSystem: any FileSystemManaging = FileSystem.shared
     ) {
         self.knowledgeDirectory = knowledgeDirectory
         self.sourceDataProviderFactory = sourceDataProviderFactory
+        self.fileSystem = fileSystem
     }
 
     func sourceItems(
@@ -75,13 +79,13 @@ struct MonthlyMetalSourceItemProvider: Sendable {
         return try manifestLocations.flatMap { directory in
             let manifestURL = directory.appendingPathComponent("sources.json", isDirectory: false)
 
-            guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            guard fileSystem.exists(manifestURL) else {
                 return [MonthlyMetalSourceManifestEntry]()
             }
 
             let manifest = try JSONDecoder().decode(
                 MonthlyMetalSourceManifest.self,
-                from: Data(contentsOf: manifestURL)
+                from: fileSystem.readData(from: manifestURL)
             )
 
             return manifest.sources.map {

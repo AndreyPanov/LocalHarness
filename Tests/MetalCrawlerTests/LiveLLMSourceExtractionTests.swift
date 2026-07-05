@@ -1,4 +1,5 @@
 import Foundation
+import FileSystemKit
 import SocialSourceKit
 import Testing
 @testable import MetalCrawlerCore
@@ -98,7 +99,7 @@ func extractsReviewedAlbumAndShoutoutsFromBangerTVReview() async throws {
 func extractsCandidatesFromBangerTVJuneSourceItems() async throws {
     let config = try await LiveLLMTestConfig.load()
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
-    let temp = FileManager.default.temporaryDirectory
+    let temp = FileSystem.shared.temporaryDirectory
         .appendingPathComponent("metal-crawler-live-llm-tests", isDirectory: true)
     let context = ResearchContext(
         month: month,
@@ -154,7 +155,7 @@ func extractsCandidatesFromBangerTVJuneSourceItems() async throws {
 func extractsCandidatesFromInfidelAmsterdamInstagramPosts() async throws {
     let config = try await LiveLLMTestConfig.load()
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
-    let temp = FileManager.default.temporaryDirectory
+    let temp = FileSystem.shared.temporaryDirectory
         .appendingPathComponent("metal-crawler-live-llm-tests", isDirectory: true)
     let context = ResearchContext(
         month: month,
@@ -476,8 +477,11 @@ private func decodeCandidates(from json: String) throws -> [LLMAlbumCandidate] {
 
 private enum LiveLLMOutputWriter {
     static func writeText(_ text: String, fileName: String) throws {
-        let url = try outputDirectory().appendingPathComponent(fileName, isDirectory: false)
-        try text.write(to: url, atomically: true, encoding: .utf8)
+        let url = try FileSystem.shared.writeText(
+            text,
+            fileName: fileName,
+            in: outputDirectory()
+        )
         print("[LiveLLM] wrote: \(url.path)")
     }
 
@@ -516,10 +520,7 @@ private enum LiveLLMOutputWriter {
             .appendingPathComponent(".build", isDirectory: true)
             .appendingPathComponent("live-llm-output", isDirectory: true)
 
-        try FileManager.default.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true
-        )
+        try FileSystem.shared.ensureDirectory(directory)
 
         return directory
     }

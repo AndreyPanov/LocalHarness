@@ -1,25 +1,29 @@
 import Foundation
 import CryptoKit
+import FileSystemKit
 
 final class CachedCrawlClient: CrawlClient {
     private let wrapped: any CrawlClient
     private let cacheDirectory: URL
+    private let fileSystem: any FileSystemManaging
 
-    init(wrapped: any CrawlClient, cacheDirectory: URL) {
+    init(
+        wrapped: any CrawlClient,
+        cacheDirectory: URL,
+        fileSystem: any FileSystemManaging = FileSystem.shared
+    ) {
         self.wrapped = wrapped
         self.cacheDirectory = cacheDirectory
+        self.fileSystem = fileSystem
     }
 
     func fetch(_ request: CrawlRequest) async throws -> CrawledPage {
-        try FileManager.default.createDirectory(
-            at: cacheDirectory,
-            withIntermediateDirectories: true
-        )
+        try fileSystem.ensureDirectory(cacheDirectory)
 
         let cacheURL = cacheDirectory.appendingPathComponent(cacheKey(for: request) + ".json")
 
-        if FileManager.default.fileExists(atPath: cacheURL.path) {
-            let data = try Data(contentsOf: cacheURL)
+        if fileSystem.exists(cacheURL) {
+            let data = try fileSystem.readData(from: cacheURL)
             return try JSONDecoder().decode(CrawledPage.self, from: data)
         }
 
@@ -29,7 +33,7 @@ final class CachedCrawlClient: CrawlClient {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         let data = try encoder.encode(page)
-        try data.write(to: cacheURL, options: .atomic)
+        try fileSystem.writeData(data, to: cacheURL)
 
         return page
     }

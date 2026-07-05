@@ -1,4 +1,5 @@
 import Foundation
+import FileSystemKit
 import SocialSourceKit
 import Testing
 @testable import MetalCrawlerCore
@@ -11,7 +12,7 @@ import Testing
         withExtension: "html",
         subdirectory: "Fixtures"
     ))
-    let html = try String(contentsOf: fixtureURL, encoding: .utf8)
+    let html = try FileSystem.shared.readText(from: fixtureURL)
 
     let page = SocialSourcePage(
         url: url,

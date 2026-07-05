@@ -1,4 +1,5 @@
 import Foundation
+import FileSystemKit
 import SocialSourceKit
 import Testing
 @testable import MetalCrawlerCore
@@ -224,7 +225,7 @@ import Testing
         knowledgeDirectory: knowledgeDirectory
     )
 
-    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    defer { try? FileSystem.shared.removeItem(at: temporaryDirectory) }
 
     try writeGlobalSourceProvider(
         knowledgeDirectory: knowledgeDirectory,
@@ -270,7 +271,7 @@ import Testing
         """
     )
 
-    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    defer { try? FileSystem.shared.removeItem(at: temporaryDirectory) }
 
     try writeGlobalSourceProvider(
         knowledgeDirectory: knowledgeDirectory,
@@ -296,19 +297,16 @@ import Testing
     )
 
     let result = try await crawler.listCandidates(month: "2026-06")
-    let sourceItemsJSON = try String(
-        contentsOf: result.sourceItemsArtifactURL,
-        encoding: .utf8
-    )
+    let sourceItemsJSON = try FileSystem.shared.readText(from: result.sourceItemsArtifactURL)
     let potentialCandidatesArtifact = try JSONDecoder().decode(
         TestMonthlyMetalPotentialCandidateArtifact.self,
-        from: Data(contentsOf: result.potentialCandidatesArtifactURL)
+        from: FileSystem.shared.readData(from: result.potentialCandidatesArtifactURL)
     )
 
     #expect(result.runID == RunID("test-monthly-metal-crawler"))
-    #expect(FileManager.default.fileExists(atPath: result.runDirectory.path))
-    #expect(FileManager.default.fileExists(atPath: result.potentialCandidatesArtifactURL.path))
-    #expect(FileManager.default.fileExists(atPath: result.sourceItemsArtifactURL.path))
+    #expect(FileSystem.shared.exists(result.runDirectory))
+    #expect(FileSystem.shared.exists(result.potentialCandidatesArtifactURL))
+    #expect(FileSystem.shared.exists(result.sourceItemsArtifactURL))
     #expect(result.sourceExtractionArtifactURL == nil)
     #expect(result.sourceItems.count == 1)
     #expect(result.extractedSourceItemCount == 0)
@@ -341,7 +339,7 @@ import Testing
         """
     )
 
-    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    defer { try? FileSystem.shared.removeItem(at: temporaryDirectory) }
 
     try writeGlobalSourceProvider(
         knowledgeDirectory: knowledgeDirectory,
@@ -399,13 +397,9 @@ import Testing
             model: "stub-model"
         )
     )
-    let potentialCandidatesJSON = try String(
-        contentsOf: result.potentialCandidatesArtifactURL,
-        encoding: .utf8
-    )
-    let sourceExtractionJSON = try String(
-        contentsOf: try #require(result.sourceExtractionArtifactURL),
-        encoding: .utf8
+    let potentialCandidatesJSON = try FileSystem.shared.readText(from: result.potentialCandidatesArtifactURL)
+    let sourceExtractionJSON = try FileSystem.shared.readText(
+        from: try #require(result.sourceExtractionArtifactURL)
     )
     let lamp = try #require(result.potentialCandidates.first {
         $0.bandName == "Lamp of Murmuur"
@@ -438,7 +432,7 @@ private func fixtureString(named name: String, fileExtension: String) throws -> 
         subdirectory: "Fixtures"
     ))
 
-    return try String(contentsOf: fixtureURL, encoding: .utf8)
+    return try FileSystem.shared.readText(from: fixtureURL)
 }
 
 private func jsonSourcePage(url: URL, fixtureName: String) throws -> SocialSourcePage {
@@ -453,12 +447,7 @@ private func jsonSourcePage(url: URL, fixtureName: String) throws -> SocialSourc
 }
 
 private func makeTemporaryDirectory() throws -> URL {
-    let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("metal-crawler-tests", isDirectory: true)
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
-
-    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    return url
+    try FileSystem.shared.makeTemporaryDirectory(baseName: "metal-crawler-tests")
 }
 
 private struct BangerTVFixture {
@@ -517,12 +506,7 @@ private func writeGlobalSourceProvider(
     let sourceDirectory = knowledgeDirectory
         .appendingPathComponent("source-providers", isDirectory: true)
 
-    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-    try manifest.write(
-        to: sourceDirectory.appendingPathComponent("sources.json", isDirectory: false),
-        atomically: true,
-        encoding: .utf8
-    )
+    try FileSystem.shared.writeText(manifest, fileName: "sources.json", in: sourceDirectory)
 }
 
 private struct DictionaryCrawlClient: CrawlClient {

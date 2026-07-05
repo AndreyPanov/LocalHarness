@@ -1,16 +1,20 @@
 import Foundation
+import FileSystemKit
 
 public struct JSONArtifactGenerator: JSONArtifactHandling {
     private let encoder: JSONEncoder
+    private let fileSystem: any FileSystemManaging
 
     public init(
         dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .iso8601,
-        outputFormatting: JSONEncoder.OutputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        outputFormatting: JSONEncoder.OutputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes],
+        fileSystem: any FileSystemManaging = FileSystem.shared
     ) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = dateEncodingStrategy
         encoder.outputFormatting = outputFormatting
         self.encoder = encoder
+        self.fileSystem = fileSystem
     }
 
     public func generateJSON<T: Encodable>(
@@ -57,15 +61,7 @@ public struct JSONArtifactGenerator: JSONArtifactHandling {
         data: String
     ) -> Bool {
         do {
-            try FileManager.default.createDirectory(
-                at: directory,
-                withIntermediateDirectories: true
-            )
-            try data.write(
-                to: directory.appendingPathComponent(fileName, isDirectory: false),
-                atomically: true,
-                encoding: .utf8
-            )
+            try fileSystem.writeText(data, fileName: fileName, in: directory)
             return true
         } catch {
             return false

@@ -1,4 +1,5 @@
 import Foundation
+import FileSystemKit
 import JSONArtifactKit
 import SocialSourceKit
 
@@ -8,6 +9,7 @@ public struct MonthlyMetalCrawler: Sendable {
     private let runIDProvider: @Sendable () -> RunID
     private let crawlClientFactory: @Sendable (URL) -> any CrawlClient
     private let llmProviderFactory: @Sendable (MonthlyMetalSourceExtractionConfiguration) -> any LLMProvider
+    private let fileSystem: any FileSystemManaging
 
     public init(
         runsDirectory: URL = URL(fileURLWithPath: "runs", isDirectory: true),
@@ -32,6 +34,7 @@ public struct MonthlyMetalCrawler: Sendable {
                 session: URLSession(configuration: sessionConfiguration)
             )
         }
+        self.fileSystem = FileSystem.shared
     }
 
     init(
@@ -41,13 +44,15 @@ public struct MonthlyMetalCrawler: Sendable {
         crawlClientFactory: @escaping @Sendable (URL) -> any CrawlClient,
         llmProviderFactory: @escaping @Sendable (MonthlyMetalSourceExtractionConfiguration) -> any LLMProvider = { configuration in
             OpenAICompatibleLLMProvider(baseURL: configuration.baseURL)
-        }
+        },
+        fileSystem: any FileSystemManaging = FileSystem.shared
     ) {
         self.runsDirectory = runsDirectory
         self.knowledgeDirectory = knowledgeDirectory
         self.runIDProvider = runIDProvider
         self.crawlClientFactory = crawlClientFactory
         self.llmProviderFactory = llmProviderFactory
+        self.fileSystem = fileSystem
     }
 
     public func listCandidates(
@@ -58,10 +63,7 @@ public struct MonthlyMetalCrawler: Sendable {
         let runID = runIDProvider()
         let runDirectory = runsDirectory.appendingPathComponent(runID.rawValue, isDirectory: true)
 
-        try FileManager.default.createDirectory(
-            at: runDirectory,
-            withIntermediateDirectories: true
-        )
+        try fileSystem.ensureDirectory(runDirectory)
 
         let context = ResearchContext(
             month: month,
