@@ -117,3 +117,25 @@ import Testing
 
     #expect(MetalArchivesAlbumPageExtractor.shared.fullLengthAlbumCount(fromDiscographyHTML: html) == 2)
 }
+
+@Test func metalArchivesAlbumExtractorTreatsNoReviewsAsZeroReviewCount() throws {
+    let url = URL(string: "https://www.metal-archives.com/albums/Crack_Up/Blood_Is_Life/8357")!
+    let html = """
+    <title>Crack Up - Blood Is Life - Encyclopaedia Metallum: The Metal Archives</title>
+    <h1 class="album_name"><a href="https://www.metal-archives.com/albums/Crack_Up/Blood_Is_Life/8357">Blood Is Life</a></h1>
+    <h2 class="band_name"><a href="https://www.metal-archives.com/bands/Crack_Up/3393">Crack Up</a></h2>
+    <dl>
+      <dt>Type:</dt><dd>Full-length</dd>
+      <dt>Release date:</dt><dd>April 1st, 1996</dd>
+      <dt>Label:</dt><dd>Corrosion</dd>
+      <dt>Reviews:</dt><dd>None yet</dd>
+    </dl>
+    """
+    let enrichment = try #require(MetalArchivesAlbumPageExtractor.shared.extractAlbumEnrichment(
+        from: html,
+        finalURL: url
+    ))
+
+    #expect(enrichment.reviewCount == 0)
+    #expect(enrichment.averageReviewScore == nil)
+}

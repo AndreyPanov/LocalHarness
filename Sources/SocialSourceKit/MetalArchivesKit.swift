@@ -200,6 +200,17 @@ public struct MetalArchivesAlbumPageExtractor: MetalArchivesAlbumExtracting, Met
     }
 
     private func reviewSummary(from value: String) -> MetalArchivesReviewSummary {
+        let normalizedValue = value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .lowercased()
+
+        if normalizedValue.contains("none yet") || normalizedValue.contains("no reviews") {
+            return MetalArchivesReviewSummary(
+                reviewCount: 0,
+                averageScore: nil
+            )
+        }
+
         let reviewCount = firstMatch(
             in: value,
             pattern: #"(\d+)\s+reviews?"#
@@ -304,19 +315,20 @@ public struct MetalArchivesAdvancedAlbumSearchExtractor: Sendable {
         from response: MetalArchivesAdvancedAlbumSearchResponse
     ) -> [MetalArchivesAdvancedAlbumSearchResult] {
         response.aaData.compactMap { row in
-            guard row.count > 3,
+            guard row.count >= 3,
                   let albumURL = albumURL(fromAlbumColumnHTML: row[1])
             else {
                 return nil
             }
+            let releaseDateColumnHTML = row.indices.contains(3) ? row[3] : ""
 
             return MetalArchivesAdvancedAlbumSearchResult(
                 bandName: cleanHTML(row[0]),
                 albumTitle: cleanHTML(row[1]),
                 albumURL: albumURL,
                 releaseType: cleanHTML(row[2]),
-                releaseDate: releaseDate(fromDateColumnHTML: row[3]),
-                releaseDateText: releaseDateText(fromDateColumnHTML: row[3])
+                releaseDate: releaseDate(fromDateColumnHTML: releaseDateColumnHTML),
+                releaseDateText: releaseDateText(fromDateColumnHTML: releaseDateColumnHTML)
             )
         }
     }

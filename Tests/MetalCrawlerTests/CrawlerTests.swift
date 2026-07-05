@@ -61,6 +61,26 @@ import Testing
     #expect(await wrapped.fetchCount() == 1)
 }
 
+@Test func metalArchivesPoliteCrawlClientRetriesRateLimitedRequests() async throws {
+    let page = try lampOfMurmuurPage()
+    let wrapped = RateLimitedOnceCrawlClient(page: page)
+    let client = MetalArchivesPoliteCrawlClient(
+        wrapped: wrapped,
+        minimumDelay: 0,
+        retryDelay: 0,
+        maxRetryCount: 1
+    )
+    let request = CrawlRequest(
+        url: page.url,
+        source: ResearchSource(rawValue: "metal_archives_album")
+    )
+
+    let result = try await client.fetch(request)
+
+    #expect(result.url == page.url)
+    #expect(await wrapped.fetchCount() == 2)
+}
+
 private actor CountingCrawlClient: CrawlClient {
     private let page: CrawledPage
     private var count = 0
@@ -71,6 +91,32 @@ private actor CountingCrawlClient: CrawlClient {
 
     func fetch(_ request: CrawlRequest) async throws -> CrawledPage {
         count += 1
+        return page
+    }
+
+    func fetchCount() -> Int {
+        count
+    }
+}
+
+private actor RateLimitedOnceCrawlClient: CrawlClient {
+    private let page: CrawledPage
+    private var count = 0
+
+    init(page: CrawledPage) {
+        self.page = page
+    }
+
+    func fetch(_ request: CrawlRequest) async throws -> CrawledPage {
+        count += 1
+
+        if count == 1 {
+            throw MonthlyMetalError.crawlRequestFailed(
+                url: request.url.absoluteString,
+                statusCode: 429
+            )
+        }
+
         return page
     }
 

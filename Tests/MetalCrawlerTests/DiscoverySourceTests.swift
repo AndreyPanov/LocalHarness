@@ -83,6 +83,37 @@ import Testing
     #expect(queryItems.first { $0.name == "iDisplayLength" }?.value == "20")
 }
 
+@Test func metalArchivesAdvancedSearchExtractorAcceptsTitleLookupRowsWithoutDateColumn() throws {
+    let searchJSON = #"""
+    {
+      "iTotalRecords": 1,
+      "iTotalDisplayRecords": 1,
+      "aaData": [
+        [
+          "<a href=\"https://www.metal-archives.com/bands/Walg/3540490981\" title=\"Walg (NL)\">Walg</a>",
+          "<a href=\"https://www.metal-archives.com/albums/Walg/V/1336529\">V</a> <!-- 17.427197 -->",
+          "Full-length"
+        ]
+      ]
+    }
+    """#
+    let response = try JSONDecoder().decode(
+        MetalArchivesAdvancedAlbumSearchResponse.self,
+        from: Data(searchJSON.utf8)
+    )
+
+    let albums = MetalArchivesAdvancedAlbumSearchExtractor().albums(from: response)
+    let album = try #require(albums.first)
+
+    #expect(albums.count == 1)
+    #expect(album.bandName == "Walg")
+    #expect(album.albumTitle == "V")
+    #expect(album.albumURL == URL(string: "https://www.metal-archives.com/albums/Walg/V/1336529")!)
+    #expect(album.releaseType == "Full-length")
+    #expect(album.releaseDate == nil)
+    #expect(album.releaseDateText == nil)
+}
+
 @Test func bangerTVRSSParserFindsMonthlyAndReviewVideos() throws {
     let xml = """
     <feed>

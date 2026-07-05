@@ -20,7 +20,9 @@ public struct MonthlyMetalCrawler: Sendable {
         self.runIDProvider = { RunID() }
         self.crawlClientFactory = { runDirectory in
             CachedCrawlClient(
-                wrapped: URLSessionCrawlClient(),
+                wrapped: MetalArchivesPoliteCrawlClient(
+                    wrapped: URLSessionCrawlClient()
+                ),
                 cacheDirectory: runDirectory.appendingPathComponent("crawl-cache", isDirectory: true)
             )
         }

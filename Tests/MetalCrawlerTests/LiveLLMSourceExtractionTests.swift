@@ -360,6 +360,7 @@ private func extractCandidates(
         Instagram arrival posts usually list records as album arrivals, stock updates, or format notes.
         For Instagram arrival posts, use sourceSignal instagram_arrival unless the post is clearly only a general mention.
         Extract every album or release listed in the post caption.
+        Ignore sections headed "Songs", "Tracks", "Tracklist", "Now playing", or similar. Lines like "Band: Song title" under those headings are songs, not album arrivals.
 
         Full description:
         \(description)
@@ -398,6 +399,10 @@ private func isLikelyInstagramAlbumPost(_ sourceItem: SourceProviderItem) -> Boo
 private let albumExtractionSystemPrompt = """
 You extract heavy metal album candidates from source descriptions.
 
+Only extract albums, EPs, demos, splits, compilations, or other releases.
+Do not extract songs, tracks, single track examples, playlist entries, or listening examples as albums.
+A heading named "Songs", "Tracks", "Tracklist", "Now playing", or similar means the following lines are song/track titles, not album candidates.
+If a post says "albums with..." but only lists songs under a "Songs" heading, return no candidates from that song list.
 Return only valid JSON. Do not use markdown.
 Return the JSON immediately. Do not explain your reasoning.
 Do not include analysis, notes, code fences, or prose.
