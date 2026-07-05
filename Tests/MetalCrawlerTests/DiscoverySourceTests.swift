@@ -83,7 +83,7 @@ import Testing
     #expect(entries.first.map { MonthlyMetalDateFormatter.shared.format($0.publishedAt) } == "2026-06-19")
 }
 
-@Test func bangerTVSourceItemProviderKeepsFullVideoDescription() async throws {
+@Test func bangerTVSourceProviderKeepsFullVideoDescription() async throws {
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let feedURL = URL(string: "https://www.youtube.com/feeds/videos.xml?channel_id=test-channel")!
     let videoURL = URL(string: "https://www.youtube.com/watch?v=DV-Z4kzZMfM")!
@@ -106,28 +106,24 @@ import Testing
     var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"Blayne reviews the new self titled album by doom legends Khemmis\n\nShout Outs\nMork - Monolitt - June 19th, 2026 - Peaceville Records"}};
     </script>
     """#
-    let context = ResearchContext(
-        month: month,
-        runID: RunID(),
-        crawlClient: DictionaryCrawlClient(pages: [
-            feedURL: CrawledPage(url: feedURL, finalURL: feedURL, title: nil, text: feedXML, html: feedXML),
-            videoURL: CrawledPage(url: videoURL, finalURL: videoURL, title: nil, text: videoHTML, html: videoHTML)
-        ]),
-        llmFallback: FailingLLMFallback(),
-        runsDirectory: FileManager.default.temporaryDirectory,
-        knowledgeDirectory: FileManager.default.temporaryDirectory
+    let sourceProvider = SocialSourceClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [
+            feedURL: SocialSourcePage(url: feedURL, finalURL: feedURL, text: feedXML, html: feedXML),
+            videoURL: SocialSourcePage(url: videoURL, finalURL: videoURL, text: videoHTML, html: videoHTML)
+        ])
     )
-    let descriptor = MonthlyMetalSourceDescriptor(
+    let descriptor = SourceProviderDescriptor(
         name: "BangerTV",
         kind: "youtube_channel",
         sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
         channelID: "test-channel"
     )
 
-    let sourceItems = try await BangerTVSourceItemProvider().sourceItems(
+    let sourceItems = try await BangerTVSourceProvider(
+        sourceProvider: sourceProvider
+    ).sourceItems(
         for: month,
-        descriptor: descriptor,
-        context: context
+        descriptor: descriptor
     )
     let sourceItem = try #require(sourceItems.first)
 
@@ -141,7 +137,7 @@ import Testing
     #expect(sourceItem.text.contains("Mork - Monolitt - June 19th, 2026 - Peaceville Records"))
 }
 
-@Test func instagramSourceItemProviderKeepsFullPostCaptions() async throws {
+@Test func instagramProfileSourceProviderKeepsFullPostCaptions() async throws {
     let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
     let feedURL = URL(string: "https://www.instagram.com/api/v1/feed/user/infidelamsterdam/username/?count=50")!
     let json = """
@@ -166,27 +162,23 @@ import Testing
       "next_max_id": null
     }
     """
-    let context = ResearchContext(
-        month: month,
-        runID: RunID(),
-        crawlClient: DictionaryCrawlClient(pages: [
-            feedURL: CrawledPage(url: feedURL, finalURL: feedURL, title: nil, text: json, html: json)
-        ]),
-        llmFallback: FailingLLMFallback(),
-        runsDirectory: FileManager.default.temporaryDirectory,
-        knowledgeDirectory: FileManager.default.temporaryDirectory
+    let sourceProvider = SocialSourceClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [
+            feedURL: SocialSourcePage(url: feedURL, finalURL: feedURL, text: json, html: json)
+        ])
     )
-    let descriptor = MonthlyMetalSourceDescriptor(
+    let descriptor = SourceProviderDescriptor(
         name: "InfidelAmsterdam Instagram",
         kind: "instagram_profile",
         sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,
         username: "infidelamsterdam"
     )
 
-    let sourceItems = try await InstagramProfileSourceItemProvider().sourceItems(
+    let sourceItems = try await InstagramProfileSourceProvider(
+        sourceProvider: sourceProvider
+    ).sourceItems(
         for: month,
-        descriptor: descriptor,
-        context: context
+        descriptor: descriptor
     )
     let sourceItem = try #require(sourceItems.first)
 

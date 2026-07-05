@@ -1,78 +1,38 @@
 import Foundation
-
-struct MonthlyMetalSourceDescriptor: Decodable, Hashable, Sendable {
-    let name: String
-    let kind: String
-    let sourceURL: URL?
-    let channelID: String?
-    let username: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case name
-        case kind
-        case sourceURL
-        case url
-        case channelID
-        case username
-    }
-
-    init(
-        name: String,
-        kind: String,
-        sourceURL: URL?,
-        channelID: String? = nil,
-        username: String? = nil
-    ) {
-        self.name = name
-        self.kind = kind
-        self.sourceURL = sourceURL
-        self.channelID = channelID
-        self.username = username
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        self.name = try container.decode(String.self, forKey: .name)
-        self.kind = try container.decode(String.self, forKey: .kind)
-        self.sourceURL = try container.decodeIfPresent(URL.self, forKey: .sourceURL)
-            ?? container.decodeIfPresent(URL.self, forKey: .url)
-        self.channelID = try container.decodeIfPresent(String.self, forKey: .channelID)
-        self.username = try container.decodeIfPresent(String.self, forKey: .username)
-    }
-}
+import SocialSourceKit
 
 struct MonthlyMetalSourceManifest: Decodable, Sendable {
-    let sources: [MonthlyMetalSourceDescriptor]
+    let sources: [SourceProviderDescriptor]
 
     private enum CodingKeys: CodingKey {
         case sources
     }
 
     init(from decoder: Decoder) throws {
-        if let sources = try? [MonthlyMetalSourceDescriptor](from: decoder) {
+        if let sources = try? [SourceProviderDescriptor](from: decoder) {
             self.sources = sources
             return
         }
 
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.sources = try container.decode([MonthlyMetalSourceDescriptor].self, forKey: .sources)
+        self.sources = try container.decode([SourceProviderDescriptor].self, forKey: .sources)
     }
 }
 
 struct MonthlyMetalSourceItemProvider: Sendable {
     private let knowledgeDirectory: URL
-    private let bangerTVSource: BangerTVSourceItemProvider
-    private let instagramSource: InstagramProfileSourceItemProvider
+    private let sourceDataProviderFactory: @Sendable (any CrawlClient) -> any SourceDataProviding
 
     init(
         knowledgeDirectory: URL,
-        bangerTVSource: BangerTVSourceItemProvider = BangerTVSourceItemProvider(),
-        instagramSource: InstagramProfileSourceItemProvider = InstagramProfileSourceItemProvider()
+        sourceDataProviderFactory: @escaping @Sendable (any CrawlClient) -> any SourceDataProviding = { crawlClient in
+            SourceDataClient(
+                fetcher: CrawlClientSocialSourceFetcher(crawlClient: crawlClient)
+            )
+        }
     ) {
         self.knowledgeDirectory = knowledgeDirectory
-        self.bangerTVSource = bangerTVSource
-        self.instagramSource = instagramSource
+        self.sourceDataProviderFactory = sourceDataProviderFactory
     }
 
     func sourceItems(
@@ -80,30 +40,15 @@ struct MonthlyMetalSourceItemProvider: Sendable {
         context: ResearchContext
     ) async throws -> [MonthlyMetalSourceItem] {
         let sourceManifests = try sourceManifests(for: month)
+        let sourceDataProvider = sourceDataProviderFactory(context.crawlClient)
 
         var sourceItems: [MonthlyMetalSourceItem] = []
 
         for sourceManifest in sourceManifests {
-            let descriptor = sourceManifest.descriptor
-
-            switch descriptor.kind {
-            case "youtube_channel":
-                sourceItems.append(contentsOf: try await bangerTVSource.sourceItems(
-                    for: month,
-                    descriptor: descriptor,
-                    context: context
-                ))
-
-            case "instagram_profile":
-                sourceItems.append(contentsOf: try await instagramSource.sourceItems(
-                    for: month,
-                    descriptor: descriptor,
-                    context: context
-                ))
-
-            default:
-                continue
-            }
+            sourceItems.append(contentsOf: try await sourceDataProvider.sourceItems(
+                for: month,
+                descriptor: sourceManifest.descriptor
+            ).map { monthlyMetalSourceItem(from: $0) })
         }
 
         return deduplicated(sourceItems)
@@ -175,9 +120,23 @@ struct MonthlyMetalSourceItemProvider: Sendable {
 
         return result
     }
+
+    private func monthlyMetalSourceItem(
+        from item: SourceProviderItem
+    ) -> MonthlyMetalSourceItem {
+        MonthlyMetalSourceItem(
+            sourceName: item.sourceName,
+            sourceKind: item.sourceKind,
+            sourceURL: item.sourceURL,
+            itemURL: item.itemURL,
+            title: item.title,
+            publishedAt: item.publishedAt,
+            text: item.text
+        )
+    }
 }
 
 private struct MonthlyMetalSourceManifestEntry: Sendable {
-    let descriptor: MonthlyMetalSourceDescriptor
+    let descriptor: SourceProviderDescriptor
     let directory: URL
 }

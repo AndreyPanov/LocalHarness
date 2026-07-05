@@ -1,5 +1,6 @@
 import Foundation
 import JSONArtifactKit
+import SocialSourceKit
 
 public struct MonthlyMetalCrawler: Sendable {
     private let runsDirectory: URL
@@ -194,44 +195,14 @@ public struct MonthlyMetalCrawler: Sendable {
         )
         var results: [MonthlyMetalSourceExtractionResult] = []
 
-        for sourceItem in sourceItems where shouldExtractSourceCandidates(from: sourceItem) {
+        for sourceItem in sourceItems where SourceCandidateSignalDetector.shared.shouldExtractCandidates(
+            sourceKind: sourceItem.sourceKind,
+            text: sourceItem.text
+        ) {
             results.append(await extractor.extract(from: sourceItem))
         }
 
         return results
-    }
-
-    private func shouldExtractSourceCandidates(
-        from sourceItem: MonthlyMetalSourceItem
-    ) -> Bool {
-        guard sourceItem.sourceKind == "instagram_post" else {
-            return true
-        }
-
-        let text = sourceItem.text
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .lowercased()
-        let albumSignals = [
-            "new arrival",
-            "new arrivals",
-            "vinyl",
-            " lp",
-            " cd",
-            "cassette",
-            "tape",
-            "full length",
-            "full-length",
-            "album",
-            "demo",
-            "ep",
-            "black metal",
-            "death metal",
-            "doom metal",
-            "heavy metal",
-            "thrash metal"
-        ]
-
-        return albumSignals.contains { text.contains($0) }
     }
 
     private func potentialCandidates(

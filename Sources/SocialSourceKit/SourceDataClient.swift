@@ -71,6 +71,37 @@ public struct SourceDataClient: SourceDataProviding {
         )
     }
 
+    public func sourceItems(
+        for month: Date,
+        descriptor: SourceProviderDescriptor
+    ) async throws -> [SourceProviderItem] {
+        switch descriptor.kind {
+        case "youtube_channel":
+            return try await BangerTVSourceProvider(
+                sourceProvider: socialClient
+            ).sourceItems(for: month, descriptor: descriptor)
+
+        case "instagram_profile":
+            return try await InstagramProfileSourceProvider(
+                sourceProvider: socialClient
+            ).sourceItems(for: month, descriptor: descriptor)
+
+        default:
+            return []
+        }
+    }
+
+    public func shouldExtractCandidates(from item: SourceProviderItem) -> Bool {
+        SourceCandidateSignalDetector.shared.shouldExtractCandidates(from: item)
+    }
+
+    public func shouldExtractCandidates(sourceKind: String, text: String) -> Bool {
+        SourceCandidateSignalDetector.shared.shouldExtractCandidates(
+            sourceKind: sourceKind,
+            text: text
+        )
+    }
+
     public func extractAlbum(from page: SocialSourcePage) -> MetalArchivesAlbum? {
         metalArchivesAlbumExtractor.extractAlbum(from: page)
     }

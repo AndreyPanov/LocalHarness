@@ -111,16 +111,20 @@ func extractsCandidatesFromBangerTVJuneSourceItems() async throws {
         runsDirectory: temp,
         knowledgeDirectory: temp
     )
-    let descriptor = MonthlyMetalSourceDescriptor(
+    let descriptor = SourceProviderDescriptor(
         name: "BangerTV",
         kind: "youtube_channel",
         sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
         channelID: "UCeUMZ4t3ezEJFhXHJg9rshQ"
     )
-    let sourceItems = try await BangerTVSourceItemProvider().sourceItems(
+    let sourceProvider = SocialSourceClient(
+        fetcher: CrawlClientSocialSourceFetcher(crawlClient: context.crawlClient)
+    )
+    let sourceItems = try await BangerTVSourceProvider(
+        sourceProvider: sourceProvider
+    ).sourceItems(
         for: month,
-        descriptor: descriptor,
-        context: context
+        descriptor: descriptor
     )
     var candidates: [LLMAlbumCandidate] = []
 
@@ -163,16 +167,21 @@ func extractsCandidatesFromInfidelAmsterdamInstagramPosts() async throws {
         runsDirectory: temp,
         knowledgeDirectory: temp
     )
-    let descriptor = MonthlyMetalSourceDescriptor(
+    let descriptor = SourceProviderDescriptor(
         name: "InfidelAmsterdam Instagram",
         kind: "instagram_profile",
         sourceURL: URL(string: "https://www.instagram.com/infidelamsterdam/")!,
         username: "infidelamsterdam"
     )
-    let sourceItems = try await InstagramProfileSourceItemProvider(maxPages: 4).sourceItems(
+    let sourceProvider = SocialSourceClient(
+        fetcher: CrawlClientSocialSourceFetcher(crawlClient: context.crawlClient)
+    )
+    let sourceItems = try await InstagramProfileSourceProvider(
+        sourceProvider: sourceProvider,
+        maxPages: 4
+    ).sourceItems(
         for: month,
-        descriptor: descriptor,
-        context: context
+        descriptor: descriptor
     )
     let albumLikeSourceItems = sourceItems.filter(isLikelyInstagramAlbumPost)
     let limitedSourceItems = Array(albumLikeSourceItems.prefix(config.instagramSourceItemLimit))
@@ -380,32 +389,8 @@ private func extractCandidates(
     }
 }
 
-private func isLikelyInstagramAlbumPost(_ sourceItem: MonthlyMetalSourceItem) -> Bool {
-    let text = sourceItem.text
-        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-        .lowercased()
-
-    let albumSignals = [
-        "new arrival",
-        "new arrivals",
-        "vinyl",
-        " lp",
-        " cd",
-        "cassette",
-        "tape",
-        "full length",
-        "full-length",
-        "album",
-        "demo",
-        "ep",
-        "black metal",
-        "death metal",
-        "doom metal",
-        "heavy metal",
-        "thrash metal"
-    ]
-
-    return albumSignals.contains { text.contains($0) }
+private func isLikelyInstagramAlbumPost(_ sourceItem: SourceProviderItem) -> Bool {
+    SourceCandidateSignalDetector.shared.shouldExtractCandidates(from: sourceItem)
 }
 
 private let albumExtractionSystemPrompt = """

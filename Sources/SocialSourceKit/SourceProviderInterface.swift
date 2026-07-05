@@ -97,6 +97,88 @@ public enum SocialSourceError: Error, Equatable {
     case unsupportedDirectDescription(SocialSourceType)
 }
 
+/// Descriptor for one configured source provider, such as BangerTV or an Instagram profile.
+public struct SourceProviderDescriptor: Codable, Hashable, Sendable {
+    public let name: String
+    public let kind: String
+    public let sourceURL: URL?
+    public let channelID: String?
+    public let username: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case kind
+        case sourceURL
+        case url
+        case channelID
+        case username
+    }
+
+    public init(
+        name: String,
+        kind: String,
+        sourceURL: URL?,
+        channelID: String? = nil,
+        username: String? = nil
+    ) {
+        self.name = name
+        self.kind = kind
+        self.sourceURL = sourceURL
+        self.channelID = channelID
+        self.username = username
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.name = try container.decode(String.self, forKey: .name)
+        self.kind = try container.decode(String.self, forKey: .kind)
+        self.sourceURL = try container.decodeIfPresent(URL.self, forKey: .sourceURL)
+            ?? container.decodeIfPresent(URL.self, forKey: .url)
+        self.channelID = try container.decodeIfPresent(String.self, forKey: .channelID)
+        self.username = try container.decodeIfPresent(String.self, forKey: .username)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(name, forKey: .name)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(sourceURL, forKey: .sourceURL)
+        try container.encodeIfPresent(channelID, forKey: .channelID)
+        try container.encodeIfPresent(username, forKey: .username)
+    }
+}
+
+/// Normalized item emitted by a configured source provider.
+public struct SourceProviderItem: Codable, Hashable, Sendable {
+    public let sourceName: String
+    public let sourceKind: String
+    public let sourceURL: URL?
+    public let itemURL: URL?
+    public let title: String?
+    public let publishedAt: Date?
+    public let text: String
+
+    public init(
+        sourceName: String,
+        sourceKind: String,
+        sourceURL: URL?,
+        itemURL: URL?,
+        title: String?,
+        publishedAt: Date?,
+        text: String
+    ) {
+        self.sourceName = sourceName
+        self.sourceKind = sourceKind
+        self.sourceURL = sourceURL
+        self.itemURL = itemURL
+        self.title = title
+        self.publishedAt = publishedAt
+        self.text = text
+    }
+}
+
 /// Normalized album details extracted from a Metal Archives album page.
 public struct MetalArchivesAlbum: Codable, Hashable, Sendable {
     public let bandName: String
@@ -239,6 +321,24 @@ public extension SocialDescriptionProviding {
     }
 }
 
+/// Public interface for configured source providers such as BangerTV and Instagram profiles.
+public protocol SourceItemProviding: Sendable {
+    /// Returns normalized source items from a configured provider for the requested month.
+    func sourceItems(
+        for month: Date,
+        descriptor: SourceProviderDescriptor
+    ) async throws -> [SourceProviderItem]
+}
+
+/// Public interface for deciding whether a source item is worth sending to candidate extraction.
+public protocol SourceCandidateSignalFiltering: Sendable {
+    /// Returns true when the source item likely contains album candidates.
+    func shouldExtractCandidates(from item: SourceProviderItem) -> Bool
+
+    /// Returns true when source text of the given kind likely contains album candidates.
+    func shouldExtractCandidates(sourceKind: String, text: String) -> Bool
+}
+
 /// Public interface for extracting album metadata from a Metal Archives album page.
 public protocol MetalArchivesAlbumExtracting: Sendable {
     /// Extracts normalized album metadata from a fetched page.
@@ -264,4 +364,4 @@ public protocol MetalArchivesAlbumSearching: Sendable {
 }
 
 /// Single public source-provider interface exposed by this framework.
-public protocol SourceDataProviding: SocialDescriptionProviding, MetalArchivesAlbumExtracting, MetalArchivesAlbumSearching {}
+public protocol SourceDataProviding: SocialDescriptionProviding, SourceItemProviding, SourceCandidateSignalFiltering, MetalArchivesAlbumExtracting, MetalArchivesAlbumSearching {}
