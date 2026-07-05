@@ -1,5 +1,6 @@
 import Foundation
 import FileSystemKit
+import LocalLLMKit
 import SocialSourceKit
 import Testing
 @testable import MetalCrawlerCore
@@ -260,7 +261,7 @@ private struct LiveLLMTestConfig {
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode)
         else {
-            throw MonthlyMetalError.llmRequestFailed(statusCode: nil, body: body)
+            throw LocalLLMError.requestFailed(statusCode: nil, body: body)
         }
 
         let decoded = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)

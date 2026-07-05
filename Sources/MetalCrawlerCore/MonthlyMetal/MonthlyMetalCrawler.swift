@@ -1,5 +1,6 @@
 import Foundation
 import FileSystemKit
+import LocalLLMKit
 import SocialSourceKit
 
 public struct MonthlyMetalCrawler: Sendable {

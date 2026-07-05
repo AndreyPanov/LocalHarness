@@ -18,6 +18,10 @@ let package = Package(
             targets: ["FileSystemKit"]
         ),
         .library(
+            name: "LocalLLMKit",
+            targets: ["LocalLLMKit"]
+        ),
+        .library(
             name: "MetalCrawlerCore",
             targets: ["MetalCrawlerCore"]
         ),
@@ -40,16 +44,21 @@ let package = Package(
             name: "FileSystemKit"
         ),
         .target(
+            name: "LocalLLMKit"
+        ),
+        .target(
             name: "MetalCrawlerCore",
             dependencies: [
                 "SocialSourceKit",
-                "FileSystemKit"
+                "FileSystemKit",
+                "LocalLLMKit"
             ]
         ),
         .executableTarget(
             name: "MetalCrawlerCLI",
             dependencies: [
                 "MetalCrawlerCore",
+                "LocalLLMKit",
                 .product(
                     name: "ArgumentParser",
                     package: "swift-argument-parser"
@@ -61,7 +70,8 @@ let package = Package(
             dependencies: [
                 "MetalCrawlerCore",
                 "SocialSourceKit",
-                "FileSystemKit"
+                "FileSystemKit",
+                "LocalLLMKit"
             ],
             resources: [.copy("Fixtures")]
         ),

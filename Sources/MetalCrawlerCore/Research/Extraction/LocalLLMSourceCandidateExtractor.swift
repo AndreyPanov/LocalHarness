@@ -1,4 +1,5 @@
 import Foundation
+import LocalLLMKit
 
 struct LocalLLMSourceCandidateExtractor: Sendable {
     private let provider: any LLMProvider

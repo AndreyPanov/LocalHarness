@@ -1,18 +1,18 @@
 import Foundation
 
-final class OpenAICompatibleLLMProvider: LLMProvider {
+public final class OpenAICompatibleLLMProvider: LLMProvider {
     private let baseURL: URL
     private let session: URLSession
 
-    init(
-        baseURL: URL = URL(string: "http://127.0.0.1:8082/v1")!,
+    public init(
+        baseURL: URL = LocalLLMModelPreset.sourceExtraction14B.baseURL,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL
         self.session = session
     }
 
-    func complete(_ request: LLMRequest) async throws -> String {
+    public func complete(_ request: LLMRequest) async throws -> String {
         let url = baseURL.appendingPathComponent("chat/completions")
         let body = OpenAIChatRequest(
             model: request.model,
@@ -34,11 +34,11 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
         let responseBody = String(data: data, encoding: .utf8) ?? ""
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MonthlyMetalError.llmRequestFailed(statusCode: nil, body: responseBody)
+            throw LocalLLMError.requestFailed(statusCode: nil, body: responseBody)
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw MonthlyMetalError.llmRequestFailed(
+            throw LocalLLMError.requestFailed(
                 statusCode: httpResponse.statusCode,
                 body: responseBody
             )
@@ -49,7 +49,7 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
         do {
             decoded = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
         } catch {
-            throw MonthlyMetalError.llmRequestFailed(
+            throw LocalLLMError.requestFailed(
                 statusCode: httpResponse.statusCode,
                 body: responseBody
             )
@@ -58,7 +58,7 @@ final class OpenAICompatibleLLMProvider: LLMProvider {
         guard let content = decoded.choices.first?.message.content,
               !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
-            throw MonthlyMetalError.llmRequestFailed(
+            throw LocalLLMError.requestFailed(
                 statusCode: httpResponse.statusCode,
                 body: responseBody
             )

@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import LocalLLMKit
 import MetalCrawlerCore
 
 struct CrawlMetalCommand: AsyncParsableCommand {
@@ -15,9 +16,9 @@ struct CrawlMetalCommand: AsyncParsableCommand {
     var skipSourceExtraction = false
 
     @Option(help: "OpenAI-compatible local LLM base URL.")
-    var llmBaseURL = "http://127.0.0.1:8082/v1"
+    var llmBaseURL = LocalLLMModelPreset.sourceExtraction14B.baseURL.absoluteString
 
-    @Option(help: "Model name sent to the local LLM server. Defaults to LOCAL_METAL_CRAWLER_LLM_MODEL or the project default.")
+    @Option(help: "Model name sent to the local LLM server. Defaults to LOCAL_METAL_CRAWLER_LLM_MODEL or the source extraction 14B preset.")
     var llmModel: String?
 
     @Option(help: "Temperature for source candidate extraction.")
@@ -112,7 +113,7 @@ struct CrawlMetalCommand: AsyncParsableCommand {
             baseURL: baseURL,
             model: llmModel
                 ?? ProcessInfo.processInfo.environment["LOCAL_METAL_CRAWLER_LLM_MODEL"]
-                ?? "Qwen/Qwen3-14B-MLX-4bit",
+                ?? LocalLLMModelPreset.sourceExtraction14B.model,
             temperature: llmTemperature,
             maxTokens: llmMaxTokens,
             requestTimeout: llmTimeout

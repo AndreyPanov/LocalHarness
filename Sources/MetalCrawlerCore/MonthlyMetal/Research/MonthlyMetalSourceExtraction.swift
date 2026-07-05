@@ -1,4 +1,5 @@
 import Foundation
+import LocalLLMKit
 
 public struct MonthlyMetalSourceExtractionConfiguration: Sendable {
     public let baseURL: URL
@@ -8,8 +9,8 @@ public struct MonthlyMetalSourceExtractionConfiguration: Sendable {
     public let requestTimeout: TimeInterval
 
     public init(
-        baseURL: URL = URL(string: "http://127.0.0.1:8082/v1")!,
-        model: String = "Qwen/Qwen3-14B-MLX-4bit",
+        baseURL: URL = LocalLLMModelPreset.sourceExtraction14B.baseURL,
+        model: String = LocalLLMModelPreset.sourceExtraction14B.model,
         temperature: Double = 0,
         maxTokens: Int = 8192,
         requestTimeout: TimeInterval = 300
