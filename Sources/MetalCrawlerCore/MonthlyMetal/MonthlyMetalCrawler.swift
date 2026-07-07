@@ -57,35 +57,32 @@ public struct MonthlyMetalCrawler: Sendable {
         self.fileSystem = fileSystem
     }
 
-    public func listCandidates(
-        month rawMonth: String,
-        sourceExtraction: MonthlyMetalSourceExtractionConfiguration? = nil
-    ) async throws -> MonthlyMetalCandidateListResult {
+    public func listCandidates(month rawMonth: String, sourceExtraction: MonthlyMetalSourceExtractionConfiguration? = nil) async throws -> MonthlyMetalCandidateListResult {
+        
         let month = try parseMonth(rawMonth)
         let runID = runIDProvider()
         let runDirectory = runsDirectory.appendingPathComponent(runID.rawValue, isDirectory: true)
+        let factory = crawlClientFactory(runDirectory)
 
         try fileSystem.ensureDirectory(runDirectory)
 
         let context = ResearchContext(
             month: month,
             runID: runID,
-            crawlClient: crawlClientFactory(runDirectory),
+            crawlClient: factory,
             llmFallback: UnavailableLLMExtractionFallback(),
             runsDirectory: runsDirectory,
             knowledgeDirectory: knowledgeDirectory
         )
 
-        let sourceItems = try await MonthlyMetalSourceItemProvider(
-            knowledgeDirectory: knowledgeDirectory
-        ).sourceItems(for: month, context: context)
-        let extractionResults = await extractSourceCandidatesIfNeeded(
-            sourceItems: sourceItems,
-            configuration: sourceExtraction
-        )
+        let sourceItems = try await MonthlyMetalSourceItemProvider(knowledgeDirectory: knowledgeDirectory)
+            .sourceItems(for: month, context: context)
+        
+        let extractionResults = await extractSourceCandidatesIfNeeded(sourceItems: sourceItems, configuration: sourceExtraction)
         let extractedCandidateMentionCount = extractionResults.reduce(0) { partialResult, result in
             partialResult + result.candidates.count
         }
+        
         let potentialCandidates = potentialCandidates(from: extractionResults)
         let enrichedCandidates = await enrichPotentialCandidates(
             potentialCandidates,
@@ -221,10 +218,7 @@ public struct MonthlyMetalCrawler: Sendable {
         return results
     }
 
-    private func enrichPotentialCandidates(
-        _ candidates: [MonthlyMetalCandidate],
-        sourceDataProvider: any SourceDataProviding
-    ) async -> [MonthlyMetalEnrichedCandidate] {
+    private func enrichPotentialCandidates(_ candidates: [MonthlyMetalCandidate], sourceDataProvider: any SourceDataProviding) async -> [MonthlyMetalEnrichedCandidate] {
         var enrichedCandidates: [MonthlyMetalEnrichedCandidate] = []
 
         for candidate in candidates {
@@ -232,10 +226,7 @@ public struct MonthlyMetalCrawler: Sendable {
                 let enrichment = if let metalArchivesURL = candidate.metalArchivesURL {
                     try await sourceDataProvider.enrichAlbum(at: metalArchivesURL)
                 } else {
-                    try await sourceDataProvider.enrichAlbum(
-                        bandName: candidate.bandName,
-                        albumTitle: candidate.albumTitle
-                    )
+                    try await sourceDataProvider.enrichAlbum(bandName: candidate.bandName, albumTitle: candidate.albumTitle)
                 }
 
                 if let enrichment {

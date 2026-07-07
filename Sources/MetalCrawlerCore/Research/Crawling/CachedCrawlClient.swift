@@ -7,11 +7,7 @@ final class CachedCrawlClient: CrawlClient {
     private let cacheDirectory: URL
     private let fileSystem: any FileSystemManaging
 
-    init(
-        wrapped: any CrawlClient,
-        cacheDirectory: URL,
-        fileSystem: any FileSystemManaging = FileSystem.shared
-    ) {
+    init(wrapped: any CrawlClient, cacheDirectory: URL, fileSystem: any FileSystemManaging = FileSystem.shared) {
         self.wrapped = wrapped
         self.cacheDirectory = cacheDirectory
         self.fileSystem = fileSystem

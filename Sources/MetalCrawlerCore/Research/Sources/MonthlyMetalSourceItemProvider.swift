@@ -39,10 +39,7 @@ struct MonthlyMetalSourceItemProvider: Sendable {
         self.fileSystem = fileSystem
     }
 
-    func sourceItems(
-        for month: Date,
-        context: ResearchContext
-    ) async throws -> [MonthlyMetalSourceItem] {
+    func sourceItems(for month: Date, context: ResearchContext) async throws -> [MonthlyMetalSourceItem] {
         let sourceManifests = try sourceManifests(for: month)
         let sourceDataProvider = sourceDataProviderFactory(context.crawlClient)
 

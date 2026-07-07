@@ -7,12 +7,7 @@ struct LocalLLMSourceCandidateExtractor: Sendable {
     private let temperature: Double
     private let maxTokens: Int
 
-    init(
-        provider: any LLMProvider,
-        model: String,
-        temperature: Double = 0,
-        maxTokens: Int = 8192
-    ) {
+    init(provider: any LLMProvider, model: String, temperature: Double = 0, maxTokens: Int = 8192) {
         self.provider = provider
         self.model = model
         self.temperature = temperature
@@ -111,8 +106,8 @@ struct LocalLLMSourceCandidateExtractor: Sendable {
         """
         You extract heavy metal album candidates from source descriptions.
 
-        Only extract albums, EPs, demos, splits, compilations, or other releases.
-        Do not extract songs, tracks, single track examples, playlist entries, or listening examples as albums.
+        Only extract albums and EPs.
+        Do not extract demos, splits, compilations, songs or tracks.
         A heading named "Songs", "Tracks", "Tracklist", "Now playing", or similar means the following lines are song/track titles, not album candidates.
         If a post says "albums with..." but only lists songs under a "Songs" heading, return no candidates from that song list.
         Return only valid JSON. Do not use markdown.
