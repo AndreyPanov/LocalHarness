@@ -43,6 +43,7 @@ struct CrawlMetalCommand: AsyncParsableCommand {
         print("Extracted candidate mentions: \(result.extractedCandidateMentionCount)")
         print("Deduplicated potential candidates: \(result.potentialCandidates.count)")
         print("Metal Archives matches: \(result.enrichedCandidates.filter { $0.status == .matched }.count)")
+        print("Bandcamp matches: \(result.enrichedCandidates.filter { $0.bandcampStatus == .matched }.count)")
         print("")
 
         if result.potentialCandidates.isEmpty {

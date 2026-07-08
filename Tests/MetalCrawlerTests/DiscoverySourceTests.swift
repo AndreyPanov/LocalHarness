@@ -114,6 +114,153 @@ import Testing
     #expect(album.releaseDateText == nil)
 }
 
+@Test func bandcampSearchExtractorFindsAlbumResults() throws {
+    let html = """
+    <ul>
+      <li class="searchresult album">
+        <div class="heading">
+          <a href="https://astriferous.bandcamp.com/album/atavistic-unraveling?from=search">Atavistic Unraveling</a>
+        </div>
+        <div class="subhead">by Astriferous</div>
+      </li>
+      <li class="searchresult artist">
+        <div class="heading"><a href="https://example.bandcamp.com">Not an album</a></div>
+      </li>
+    </ul>
+    """
+
+    let albums = BandcampSearchExtractor().albums(from: html)
+    let album = try #require(albums.first)
+
+    #expect(albums.count == 1)
+    #expect(album.bandName == "Astriferous")
+    #expect(album.albumTitle == "Atavistic Unraveling")
+    #expect(album.albumURL == URL(string: "https://astriferous.bandcamp.com/album/atavistic-unraveling")!)
+}
+
+@Test func bandcampAlbumExtractorFindsDigitalQualityAndCDAvailability() throws {
+    let url = URL(string: "https://astriferous.bandcamp.com/album/atavistic-unraveling")!
+    let html = """
+    <meta property="og:title" content="Atavistic Unraveling" />
+    <h2 class="trackTitle">Atavistic Unraveling</h2>
+    <span itemprop="byArtist"><a>Astriferous</a></span>
+    <div class="buyItem digital">
+      <h3>Digital Album</h3>
+      <p>Includes unlimited streaming via the free Bandcamp app, plus high-quality download in MP3, FLAC and more.</p>
+      <p>24-bit/96kHz WAV available.</p>
+    </div>
+    <div class="buyItem merch">
+      <h4>Compact Disc (CD)</h4>
+      <button>Add to cart</button>
+    </div>
+    """
+    let availability = try #require(BandcampAlbumPageExtractor.shared.extractBandcampAvailability(
+        from: html,
+        finalURL: url
+    ))
+
+    #expect(availability.albumURL == url)
+    #expect(availability.bandName == "Astriferous")
+    #expect(availability.albumTitle == "Atavistic Unraveling")
+    #expect(availability.hasDigital)
+    #expect(availability.digitalFormats.contains("FLAC"))
+    #expect(availability.digitalFormats.contains("MP3"))
+    #expect(availability.digitalQualityText == "24-bit/96kHz")
+    #expect(availability.isHiResAvailable == true)
+    #expect(availability.hasCD)
+    #expect(availability.isCDAvailable)
+}
+
+@Test func bandcampAvailabilityClientResolvesExactAlbumMatch() async throws {
+    let searchClient = BandcampSearchClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [:])
+    )
+    let searchURL = searchClient.bandcampSearchURL(
+        bandName: "Astriferous",
+        albumTitle: "Atavistic Unraveling"
+    )
+    let albumURL = URL(string: "https://astriferous.bandcamp.com/album/atavistic-unraveling")!
+    let searchHTML = """
+    <li class="searchresult album">
+      <div class="heading"><a href="https://astriferous.bandcamp.com/album/atavistic-unraveling">Atavistic Unraveling</a></div>
+      <div class="subhead">by Astriferous</div>
+    </li>
+    """
+    let albumHTML = """
+    <h2 class="trackTitle">Atavistic Unraveling</h2>
+    <span itemprop="byArtist"><a>Astriferous</a></span>
+    <h3>Digital Album</h3>
+    <p>Includes unlimited streaming plus high-quality download in FLAC and more.</p>
+    """
+    let client = BandcampAvailabilityClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [
+            searchURL: SocialSourcePage(
+                url: searchURL,
+                finalURL: searchURL,
+                text: searchHTML,
+                html: searchHTML
+            ),
+            albumURL: SocialSourcePage(
+                url: albumURL,
+                finalURL: albumURL,
+                text: albumHTML,
+                html: albumHTML
+            )
+        ])
+    )
+
+    let availability = try await client.bandcampAvailability(
+        bandName: "Astriferous",
+        albumTitle: "Atavistic Unraveling"
+    )
+
+    #expect(availability?.albumURL == albumURL)
+    #expect(availability?.hasDigital == true)
+    #expect(availability?.digitalFormats == ["FLAC"])
+    #expect(availability?.hasCD == false)
+    #expect(availability?.isCDAvailable == false)
+}
+
+@Test func bandcampSourceLinkExtractorMatchesCandidateAlbumLinks() throws {
+    let text = """
+    Gozu
+    Gozu IV
+    Metal Blade Records
+    May 15, 2026
+    https://gozu.bandcamp.com/album/gozu-vi
+
+    Uncle Acid and the deadbeats
+    Don't Let It Control You
+    Killer Candy Records
+    May 29, 2026
+    https://uncleacidandthedeadbeats.bandcamp.com/track/dont-let-it-control-you
+
+    Astriferous
+    Atavistic Unraveling
+    Me Saco un Ojo/Pulverised
+    June 26th, 2026
+    https://mesacounojo.bandcamp.com/album/atavistic-unraveling
+    """
+    let extractor = BandcampSourceLinkExtractor()
+
+    let astriferousLinks = extractor.bandcampSourceLinks(
+        from: text,
+        bandName: "Astriferous",
+        albumTitle: "Atavistic Unraveling",
+        evidence: "Astriferous - Atavistic Unraveling"
+    )
+    let uncleAcidLinks = extractor.bandcampSourceLinks(
+        from: text,
+        bandName: "Uncle Acid and the deadbeats",
+        albumTitle: "Don't Let It Control You",
+        evidence: "Uncle Acid and the deadbeats - Don't Let It Control You"
+    )
+
+    #expect(astriferousLinks.first?.url == URL(string: "https://mesacounojo.bandcamp.com/album/atavistic-unraveling")!)
+    #expect(astriferousLinks.first?.kind == .album)
+    #expect(uncleAcidLinks.first?.kind == .track)
+}
+
 @Test func bangerTVRSSParserFindsMonthlyAndReviewVideos() throws {
     let xml = """
     <feed>
@@ -135,6 +282,20 @@ import Testing
     #expect(entries.map(\.videoID) == ["DV-Z4kzZMfM", "Punc3i5Su30"])
     #expect(entries.first?.title == "KHEMMIS  Khemmis | BangerTV Metal Album Reviews")
     #expect(entries.first.map { MonthlyMetalDateFormatter.shared.format($0.publishedAt) } == "2026-06-19")
+}
+
+@Test func youTubeChannelPageParserFindsVideoTitles() throws {
+    let html = #"""
+    "watchEndpoint":{"videoId":"Punc3i5Su30","webCommandMetadata":{"url":"/watch?v=Punc3i5Su30"}}
+    "metadata":{"lockupMetadataViewModel":{"title":{"content":"METAL MONTHLY JUNE 2026 | Astriferous, Speedslut, Inherits the Void, Nuclear Tomb, Iron Kobra"}}}
+    "watchEndpoint":{"videoId":"DV-Z4kzZMfM","webCommandMetadata":{"url":"/watch?v=DV-Z4kzZMfM"}}
+    "metadata":{"lockupMetadataViewModel":{"title":{"content":"KHEMMIS  Khemmis | BangerTV Metal Album Reviews"}}}
+    """#
+
+    let entries = YouTubeChannelPageParser().entries(from: html)
+
+    #expect(entries.map(\.videoID) == ["Punc3i5Su30", "DV-Z4kzZMfM"])
+    #expect(entries.first?.title == "METAL MONTHLY JUNE 2026 | Astriferous, Speedslut, Inherits the Void, Nuclear Tomb, Iron Kobra")
 }
 
 @Test func bangerTVSourceProviderKeepsFullVideoDescription() async throws {
@@ -189,6 +350,117 @@ import Testing
     #expect(sourceItem.title == "KHEMMIS  Khemmis | BangerTV Metal Album Reviews")
     #expect(sourceItem.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-19")
     #expect(sourceItem.text.contains("Mork - Monolitt - June 19th, 2026 - Peaceville Records"))
+}
+
+@Test func bangerTVSourceProviderFallsBackToChannelVideosPageWhenRSSIsUnavailable() async throws {
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
+    let channelVideosURL = URL(string: "https://www.youtube.com/@BangerTV/videos?hl=en")!
+    let videoURL = URL(string: "https://www.youtube.com/watch?v=Punc3i5Su30")!
+    let outsideMonthVideoURL = URL(string: "https://www.youtube.com/watch?v=outside-month")!
+    let channelHTML = #"""
+    "watchEndpoint":{"videoId":"Punc3i5Su30","webCommandMetadata":{"url":"/watch?v=Punc3i5Su30"}}
+    "metadata":{"lockupMetadataViewModel":{"title":{"content":"METAL MONTHLY JUNE 2026 | Astriferous, Speedslut, Inherits the Void, Nuclear Tomb, Iron Kobra"}}}
+    "watchEndpoint":{"videoId":"outside-month","webCommandMetadata":{"url":"/watch?v=outside-month"}}
+    "metadata":{"lockupMetadataViewModel":{"title":{"content":"METAL MONTHLY MAY 2026 | Example Band"}}}
+    """#
+    let videoHTML = #"""
+    <meta itemprop="datePublished" content="2026-06-03T15:19:20+00:00">
+    <script>
+    var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"The best underground metal released in June 2026\n\nAstriferous\nThe Lower Levels of Sentience"}};
+    </script>
+    """#
+    let outsideMonthVideoHTML = #"""
+    <meta itemprop="datePublished" content="2026-05-10T15:19:20+00:00">
+    <script>
+    var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"Older monthly video"}};
+    </script>
+    """#
+    let sourceProvider = SocialSourceClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [
+            channelVideosURL: SocialSourcePage(url: channelVideosURL, finalURL: channelVideosURL, text: channelHTML, html: channelHTML),
+            videoURL: SocialSourcePage(url: videoURL, finalURL: videoURL, text: videoHTML, html: videoHTML),
+            outsideMonthVideoURL: SocialSourcePage(url: outsideMonthVideoURL, finalURL: outsideMonthVideoURL, text: outsideMonthVideoHTML, html: outsideMonthVideoHTML)
+        ])
+    )
+    let descriptor = SourceProviderDescriptor(
+        name: "BangerTV",
+        kind: "youtube_channel",
+        sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
+        channelID: "stale-channel"
+    )
+
+    let sourceItems = try await BangerTVSourceProvider(
+        sourceProvider: sourceProvider
+    ).sourceItems(
+        for: month,
+        descriptor: descriptor
+    )
+    let sourceItem = try #require(sourceItems.first)
+
+    #expect(sourceItems.count == 1)
+    #expect(sourceItem.sourceKind == "youtube_monthly")
+    #expect(sourceItem.itemURL == videoURL)
+    #expect(sourceItem.publishedAt.map(MonthlyMetalDateFormatter.shared.format) == "2026-06-03")
+    #expect(sourceItem.text.contains("The Lower Levels of Sentience"))
+}
+
+@Test func bangerTVSourceProviderComplementsRSSWithChannelVideosPage() async throws {
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-06-01"))
+    let feedURL = URL(string: "https://www.youtube.com/feeds/videos.xml?channel_id=test-channel")!
+    let channelVideosURL = URL(string: "https://www.youtube.com/@BangerTV/videos?hl=en")!
+    let reviewVideoURL = URL(string: "https://www.youtube.com/watch?v=DV-Z4kzZMfM")!
+    let monthlyVideoURL = URL(string: "https://www.youtube.com/watch?v=Punc3i5Su30")!
+    let feedXML = """
+    <feed>
+      <entry>
+        <yt:videoId>DV-Z4kzZMfM</yt:videoId>
+        <title>KHEMMIS  Khemmis | BangerTV Metal Album Reviews</title>
+        <published>2026-06-19T19:22:02+00:00</published>
+      </entry>
+    </feed>
+    """
+    let channelHTML = #"""
+    "watchEndpoint":{"videoId":"Punc3i5Su30","webCommandMetadata":{"url":"/watch?v=Punc3i5Su30"}}
+    "metadata":{"lockupMetadataViewModel":{"title":{"content":"METAL MONTHLY JUNE 2026 | Astriferous, Speedslut, Inherits the Void, Nuclear Tomb, Iron Kobra"}}}
+    "watchEndpoint":{"videoId":"DV-Z4kzZMfM","webCommandMetadata":{"url":"/watch?v=DV-Z4kzZMfM"}}
+    "metadata":{"lockupMetadataViewModel":{"title":{"content":"KHEMMIS  Khemmis | BangerTV Metal Album Reviews"}}}
+    """#
+    let reviewVideoHTML = #"""
+    <meta itemprop="datePublished" content="2026-06-19T19:22:02+00:00">
+    <script>
+    var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"Blayne reviews Khemmis"}};
+    </script>
+    """#
+    let monthlyVideoHTML = #"""
+    <meta itemprop="datePublished" content="2026-06-03T15:19:20+00:00">
+    <script>
+    var ytInitialPlayerResponse = {"videoDetails":{"shortDescription":"Astriferous\nAtavistic Unraveling"}};
+    </script>
+    """#
+    let sourceProvider = SocialSourceClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [
+            feedURL: SocialSourcePage(url: feedURL, finalURL: feedURL, text: feedXML, html: feedXML),
+            channelVideosURL: SocialSourcePage(url: channelVideosURL, finalURL: channelVideosURL, text: channelHTML, html: channelHTML),
+            reviewVideoURL: SocialSourcePage(url: reviewVideoURL, finalURL: reviewVideoURL, text: reviewVideoHTML, html: reviewVideoHTML),
+            monthlyVideoURL: SocialSourcePage(url: monthlyVideoURL, finalURL: monthlyVideoURL, text: monthlyVideoHTML, html: monthlyVideoHTML)
+        ])
+    )
+    let descriptor = SourceProviderDescriptor(
+        name: "BangerTV",
+        kind: "youtube_channel",
+        sourceURL: URL(string: "https://www.youtube.com/@BangerTV")!,
+        channelID: "test-channel"
+    )
+
+    let sourceItems = try await BangerTVSourceProvider(
+        sourceProvider: sourceProvider
+    ).sourceItems(
+        for: month,
+        descriptor: descriptor
+    )
+
+    #expect(sourceItems.map(\.itemURL) == [reviewVideoURL, monthlyVideoURL])
+    #expect(sourceItems.map(\.sourceKind) == ["youtube_album_review", "youtube_monthly"])
 }
 
 @Test func instagramProfileSourceProviderKeepsFullPostCaptions() async throws {
@@ -308,6 +580,45 @@ import Testing
     #expect(sourceItem.title == "METAL MONTHLY MAY 2026 | Example Band")
     #expect(sourceItem.text.contains("Example Band"))
     #expect(sourceItem.text.contains("Example Album"))
+}
+
+@Test func monthlyMetalSourceItemProviderSkipsDisabledSources() async throws {
+    let temporaryDirectory = try makeTemporaryDirectory()
+    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
+    let month = try #require(MonthlyMetalDateFormatter.shared.parse("2026-05-01"))
+    let context = ResearchContext(
+        month: month,
+        runID: RunID(),
+        crawlClient: DictionaryCrawlClient(pages: [:]),
+        llmFallback: FailingLLMFallback(),
+        runsDirectory: temporaryDirectory,
+        knowledgeDirectory: knowledgeDirectory
+    )
+
+    defer { try? FileSystem.shared.removeItem(at: temporaryDirectory) }
+
+    try writeGlobalSourceProvider(
+        knowledgeDirectory: knowledgeDirectory,
+        manifest: """
+        {
+          "sources": [
+            {
+              "name": "Disabled BangerTV",
+              "kind": "youtube_channel",
+              "url": "https://www.youtube.com/@BangerTV",
+              "channelID": "test-channel",
+              "enabled": false
+            }
+          ]
+        }
+        """
+    )
+
+    let sourceItems = try await MonthlyMetalSourceItemProvider(
+        knowledgeDirectory: knowledgeDirectory
+    ).sourceItems(for: month, context: context)
+
+    #expect(sourceItems.isEmpty)
 }
 
 @Test func monthlyMetalCrawlerWritesSourceItemsWithoutExtraction() async throws {
@@ -478,6 +789,111 @@ import Testing
     #expect(sourceExtractionJSON.contains("Source Only - Hidden Demo"))
 }
 
+@Test func monthlyMetalCrawlerFallsBackToBandcampSearchWhenSourceLinkFails() async throws {
+    let temporaryDirectory = try makeTemporaryDirectory()
+    let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
+    let knowledgeDirectory = temporaryDirectory.appendingPathComponent("knowledge", isDirectory: true)
+    let bandcampAlbumURL = URL(string: "https://lampofmurmuur.bandcamp.com/album/the-dreaming-prince-in-ecstasy")!
+    let staleBandcampAlbumURL = URL(string: "https://lampofmurmuur.bandcamp.com/album/stale-source-link")!
+    let bandcampSearchURL = BandcampSearchClient(
+        fetcher: DictionarySocialSourceFetcher(pages: [:])
+    ).bandcampSearchURL(
+        bandName: "Lamp of Murmuur",
+        albumTitle: "The Dreaming Prince in Ecstasy"
+    )
+    let bandcampSearchHTML = """
+    <li class="searchresult album">
+      <div class="heading">
+        <a href="https://lampofmurmuur.bandcamp.com/album/the-dreaming-prince-in-ecstasy">The Dreaming Prince in Ecstasy</a>
+      </div>
+      <div class="subhead">by Lamp of Murmuur</div>
+    </li>
+    """
+    let bandcampAlbumHTML = """
+    <h2 class="trackTitle">The Dreaming Prince in Ecstasy</h2>
+    <span itemprop="byArtist"><a>Lamp of Murmuur</a></span>
+    <h3>Digital Album</h3>
+    <p>Includes unlimited streaming plus high-quality download in FLAC and more.</p>
+    """
+    let bangerTVFixture = try bangerTVMonthlyFixture(
+        description: """
+        Lamp of Murmuur
+        The Dreaming Prince in Ecstasy
+        \(staleBandcampAlbumURL.absoluteString)
+        """
+    )
+    var pages = bangerTVFixture.pages
+    pages[bandcampSearchURL] = CrawledPage(
+        url: bandcampSearchURL,
+        finalURL: bandcampSearchURL,
+        title: nil,
+        text: bandcampSearchHTML,
+        html: bandcampSearchHTML
+    )
+    pages[bandcampAlbumURL] = CrawledPage(
+        url: bandcampAlbumURL,
+        finalURL: bandcampAlbumURL,
+        title: nil,
+        text: bandcampAlbumHTML,
+        html: bandcampAlbumHTML
+    )
+    let crawlPages = pages
+
+    defer { try? FileSystem.shared.removeItem(at: temporaryDirectory) }
+
+    try writeGlobalSourceProvider(
+        knowledgeDirectory: knowledgeDirectory,
+        manifest: """
+        {
+          "sources": [
+            {
+              "name": "BangerTV",
+              "kind": "youtube_channel",
+              "url": "https://www.youtube.com/@BangerTV",
+              "channelID": "test-channel"
+            }
+          ]
+        }
+        """
+    )
+
+    let crawler = MonthlyMetalCrawler(
+        runsDirectory: runsDirectory,
+        knowledgeDirectory: knowledgeDirectory,
+        runIDProvider: { RunID("test-monthly-metal-bandcamp-search-fallback") },
+        crawlClientFactory: { _ in DictionaryCrawlClient(pages: crawlPages) },
+        llmProviderFactory: { _ in
+            StubLLMProvider(response: """
+            {
+              "candidates": [
+                {
+                  "bandName": "Lamp of Murmuur",
+                  "albumTitle": "The Dreaming Prince in Ecstasy",
+                  "sourceSignal": "mentioned_album",
+                  "labelName": null,
+                  "releaseDateText": null,
+                  "evidence": "Lamp of Murmuur - The Dreaming Prince in Ecstasy",
+                  "confidence": 0.8
+                }
+              ]
+            }
+            """)
+        }
+    )
+
+    let result = try await crawler.listCandidates(
+        month: "2026-06",
+        sourceExtraction: MonthlyMetalSourceExtractionConfiguration(
+            baseURL: URL(string: "http://127.0.0.1:8082/v1")!,
+            model: "stub-model"
+        )
+    )
+    let enriched = try #require(result.enrichedCandidates.first)
+
+    #expect(enriched.bandcampStatus == .matched)
+    #expect(enriched.bandcamp?.albumURL == bandcampAlbumURL)
+}
+
 @Test func monthlyMetalCrawlerWritesMetalArchivesEnrichedCandidates() async throws {
     let temporaryDirectory = try makeTemporaryDirectory()
     let runsDirectory = temporaryDirectory.appendingPathComponent("runs", isDirectory: true)
@@ -493,6 +909,7 @@ import Testing
         start: 0,
         pageSize: 20
     )
+    let bandcampAlbumURL = URL(string: "https://lampofmurmuur.bandcamp.com/album/the-dreaming-prince-in-ecstasy")!
     let albumHTML = try fixtureString(
         named: "Lamp of Murmuur - The Dreaming Prince in Ecstasy - Encyclopaedia Metallum: The Metal Archives",
         fileExtension: "html"
@@ -539,11 +956,19 @@ import Testing
       <tr><td>Album II</td><td>Full-length</td><td>2024</td></tr>
     </table>
     """
+    let bandcampAlbumHTML = """
+    <h2 class="trackTitle">The Dreaming Prince in Ecstasy</h2>
+    <span itemprop="byArtist"><a>Lamp of Murmuur</a></span>
+    <h3>Digital Album</h3>
+    <p>Includes unlimited streaming plus high-quality download in MP3, FLAC and more.</p>
+    <div class="buyItem merch"><h4>Compact Disc (CD)</h4><button>Add to cart</button></div>
+    """
     let bangerTVFixture = try bangerTVMonthlyFixture(
         description: """
         Lamp of Murmuur
         The Dreaming Prince in Ecstasy
         November 14th, 2025
+        https://lampofmurmuur.bandcamp.com/album/the-dreaming-prince-in-ecstasy
         """
     )
     var pages = bangerTVFixture.pages
@@ -575,6 +1000,13 @@ import Testing
         title: nil,
         text: discographyHTML,
         html: discographyHTML
+    )
+    pages[bandcampAlbumURL] = CrawledPage(
+        url: bandcampAlbumURL,
+        finalURL: bandcampAlbumURL,
+        title: nil,
+        text: bandcampAlbumHTML,
+        html: bandcampAlbumHTML
     )
     let crawlPages = pages
 
@@ -645,10 +1077,18 @@ import Testing
     #expect(enriched.metalArchives?.fullTimeMemberCount == 2)
     #expect(enriched.metalArchives?.reviewCount == 2)
     #expect(enriched.metalArchives?.averageReviewScore == 92)
+    #expect(enriched.bandcampStatus == .matched)
+    #expect(enriched.bandcamp?.albumURL == bandcampAlbumURL)
+    #expect(enriched.bandcamp?.hasDigital == true)
+    #expect(enriched.bandcamp?.digitalFormats.contains("FLAC") == true)
+    #expect(enriched.bandcamp?.hasCD == true)
+    #expect(enriched.bandcamp?.isCDAvailable == true)
     #expect(enrichedArtifact.month == "2026-06")
     #expect(enrichedArtifact.candidates.first?.status == .matched)
+    #expect(enrichedArtifact.candidates.first?.bandcampStatus == .matched)
     #expect(enrichedJSON.contains(#""status" : "matched""#))
     #expect(enrichedJSON.contains(#""genre" : "Raw Black Metal""#))
+    #expect(enrichedJSON.contains(#""hasDigital" : true"#))
 }
 
 private func fixtureString(named name: String, fileExtension: String) throws -> String {

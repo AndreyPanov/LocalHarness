@@ -5,6 +5,10 @@ public struct SourceDataClient: SourceDataProviding {
     private let metalArchivesAlbumExtractor: any MetalArchivesAlbumExtracting & MetalArchivesEnrichmentExtracting
     private let metalArchivesAlbumSearchClient: any MetalArchivesAlbumSearching
     private let metalArchivesAlbumEnrichmentClient: any MetalArchivesAlbumEnriching
+    private let bandcampAlbumAvailabilityExtractor: any BandcampAlbumAvailabilityExtracting
+    private let bandcampSourceLinkExtractor: any BandcampSourceLinkExtracting
+    private let bandcampAlbumSearchClient: any BandcampAlbumSearching
+    private let bandcampAvailabilityClient: any BandcampAvailabilityChecking
 
     public init(
         fetcher: any SocialSourceFetching = URLSessionSocialSourceFetcher(),
@@ -12,7 +16,9 @@ public struct SourceDataClient: SourceDataProviding {
         youTubeVideoDescriptionExtractor: YouTubeVideoDescriptionExtractor = YouTubeVideoDescriptionExtractor(),
         metalArchivesAlbumExtractor: any MetalArchivesAlbumExtracting & MetalArchivesEnrichmentExtracting = MetalArchivesAlbumPageExtractor.shared,
         metalArchivesSearchPageSize: Int = 200,
-        metalArchivesIncludedReleaseTypes: Set<String> = ["full-length", "ep"]
+        metalArchivesIncludedReleaseTypes: Set<String> = ["full-length", "ep"],
+        bandcampAlbumAvailabilityExtractor: any BandcampAlbumAvailabilityExtracting = BandcampAlbumPageExtractor.shared,
+        bandcampSourceLinkExtractor: any BandcampSourceLinkExtracting = BandcampSourceLinkExtractor()
     ) {
         self.socialClient = SocialSourceClient(
             fetcher: fetcher,
@@ -31,18 +37,35 @@ public struct SourceDataClient: SourceDataProviding {
             extractor: metalArchivesAlbumExtractor,
             searchClient: searchClient
         )
+        self.bandcampAlbumAvailabilityExtractor = bandcampAlbumAvailabilityExtractor
+        self.bandcampSourceLinkExtractor = bandcampSourceLinkExtractor
+        let bandcampSearchClient = BandcampSearchClient(fetcher: fetcher)
+        self.bandcampAlbumSearchClient = bandcampSearchClient
+        self.bandcampAvailabilityClient = BandcampAvailabilityClient(
+            fetcher: fetcher,
+            searchClient: bandcampSearchClient,
+            extractor: bandcampAlbumAvailabilityExtractor
+        )
     }
 
     public init(
         socialClient: SocialSourceClient,
         metalArchivesAlbumExtractor: any MetalArchivesAlbumExtracting & MetalArchivesEnrichmentExtracting,
         metalArchivesAlbumSearchClient: any MetalArchivesAlbumSearching,
-        metalArchivesAlbumEnrichmentClient: any MetalArchivesAlbumEnriching
+        metalArchivesAlbumEnrichmentClient: any MetalArchivesAlbumEnriching,
+        bandcampAlbumAvailabilityExtractor: any BandcampAlbumAvailabilityExtracting,
+        bandcampSourceLinkExtractor: any BandcampSourceLinkExtracting,
+        bandcampAlbumSearchClient: any BandcampAlbumSearching,
+        bandcampAvailabilityClient: any BandcampAvailabilityChecking
     ) {
         self.socialClient = socialClient
         self.metalArchivesAlbumExtractor = metalArchivesAlbumExtractor
         self.metalArchivesAlbumSearchClient = metalArchivesAlbumSearchClient
         self.metalArchivesAlbumEnrichmentClient = metalArchivesAlbumEnrichmentClient
+        self.bandcampAlbumAvailabilityExtractor = bandcampAlbumAvailabilityExtractor
+        self.bandcampSourceLinkExtractor = bandcampSourceLinkExtractor
+        self.bandcampAlbumSearchClient = bandcampAlbumSearchClient
+        self.bandcampAvailabilityClient = bandcampAvailabilityClient
     }
 
     public func getDescription(
@@ -212,5 +235,73 @@ public struct SourceDataClient: SourceDataProviding {
 
     public func enrichAlbum(at albumURL: URL) async throws -> MetalArchivesAlbumEnrichment? {
         try await metalArchivesAlbumEnrichmentClient.enrichAlbum(at: albumURL)
+    }
+
+    public func extractBandcampAvailability(from page: SocialSourcePage) -> BandcampAlbumAvailability? {
+        bandcampAlbumAvailabilityExtractor.extractBandcampAvailability(from: page)
+    }
+
+    public func extractBandcampAvailability(
+        from html: String,
+        finalURL: URL?
+    ) -> BandcampAlbumAvailability? {
+        bandcampAlbumAvailabilityExtractor.extractBandcampAvailability(
+            from: html,
+            finalURL: finalURL
+        )
+    }
+
+    public func bandcampSourceLinks(from text: String) -> [BandcampSourceLink] {
+        bandcampSourceLinkExtractor.bandcampSourceLinks(from: text)
+    }
+
+    public func bandcampSourceLinks(
+        from text: String,
+        bandName: String,
+        albumTitle: String,
+        evidence: String?
+    ) -> [BandcampSourceLink] {
+        bandcampSourceLinkExtractor.bandcampSourceLinks(
+            from: text,
+            bandName: bandName,
+            albumTitle: albumTitle,
+            evidence: evidence
+        )
+    }
+
+    public func bandcampAlbums(
+        bandName: String,
+        albumTitle: String,
+        limit: Int
+    ) async throws -> [BandcampSearchResult] {
+        try await bandcampAlbumSearchClient.bandcampAlbums(
+            bandName: bandName,
+            albumTitle: albumTitle,
+            limit: limit
+        )
+    }
+
+    public func bandcampSearchURL(
+        bandName: String,
+        albumTitle: String
+    ) -> URL {
+        bandcampAlbumSearchClient.bandcampSearchURL(
+            bandName: bandName,
+            albumTitle: albumTitle
+        )
+    }
+
+    public func bandcampAvailability(
+        bandName: String,
+        albumTitle: String
+    ) async throws -> BandcampAlbumAvailability? {
+        try await bandcampAvailabilityClient.bandcampAvailability(
+            bandName: bandName,
+            albumTitle: albumTitle
+        )
+    }
+
+    public func bandcampAvailability(at albumURL: URL) async throws -> BandcampAlbumAvailability? {
+        try await bandcampAvailabilityClient.bandcampAvailability(at: albumURL)
     }
 }

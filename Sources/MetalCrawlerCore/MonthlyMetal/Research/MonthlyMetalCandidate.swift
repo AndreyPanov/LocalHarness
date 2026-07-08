@@ -117,16 +117,25 @@ public struct MonthlyMetalEnrichedCandidate: Codable, Hashable, Sendable {
     public let status: MonthlyMetalEnrichmentStatus
     public let metalArchives: MetalArchivesAlbumEnrichment?
     public let errorMessage: String?
+    public let bandcampStatus: MonthlyMetalEnrichmentStatus?
+    public let bandcamp: BandcampAlbumAvailability?
+    public let bandcampErrorMessage: String?
 
     public init(
         candidate: MonthlyMetalCandidate,
         status: MonthlyMetalEnrichmentStatus,
         metalArchives: MetalArchivesAlbumEnrichment?,
-        errorMessage: String?
+        errorMessage: String?,
+        bandcampStatus: MonthlyMetalEnrichmentStatus? = nil,
+        bandcamp: BandcampAlbumAvailability? = nil,
+        bandcampErrorMessage: String? = nil
     ) {
         self.candidate = candidate
         self.status = status
         self.metalArchives = metalArchives
         self.errorMessage = errorMessage
+        self.bandcampStatus = bandcampStatus
+        self.bandcamp = bandcamp
+        self.bandcampErrorMessage = bandcampErrorMessage
     }
 }

@@ -104,6 +104,7 @@ public struct SourceProviderDescriptor: Codable, Hashable, Sendable {
     public let sourceURL: URL?
     public let channelID: String?
     public let username: String?
+    public let enabled: Bool
 
     private enum CodingKeys: String, CodingKey {
         case name
@@ -112,6 +113,7 @@ public struct SourceProviderDescriptor: Codable, Hashable, Sendable {
         case url
         case channelID
         case username
+        case enabled
     }
 
     public init(
@@ -119,13 +121,15 @@ public struct SourceProviderDescriptor: Codable, Hashable, Sendable {
         kind: String,
         sourceURL: URL?,
         channelID: String? = nil,
-        username: String? = nil
+        username: String? = nil,
+        enabled: Bool = true
     ) {
         self.name = name
         self.kind = kind
         self.sourceURL = sourceURL
         self.channelID = channelID
         self.username = username
+        self.enabled = enabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -137,6 +141,7 @@ public struct SourceProviderDescriptor: Codable, Hashable, Sendable {
             ?? container.decodeIfPresent(URL.self, forKey: .url)
         self.channelID = try container.decodeIfPresent(String.self, forKey: .channelID)
         self.username = try container.decodeIfPresent(String.self, forKey: .username)
+        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -147,6 +152,7 @@ public struct SourceProviderDescriptor: Codable, Hashable, Sendable {
         try container.encodeIfPresent(sourceURL, forKey: .sourceURL)
         try container.encodeIfPresent(channelID, forKey: .channelID)
         try container.encodeIfPresent(username, forKey: .username)
+        try container.encode(enabled, forKey: .enabled)
     }
 }
 
@@ -334,8 +340,91 @@ public struct MetalArchivesBandEnrichment: Codable, Hashable, Sendable {
     }
 }
 
+/// Normalized row from Bandcamp search.
+public struct BandcampSearchResult: Codable, Hashable, Sendable {
+    public let bandName: String?
+    public let albumTitle: String
+    public let albumURL: URL
+
+    public init(
+        bandName: String?,
+        albumTitle: String,
+        albumURL: URL
+    ) {
+        self.bandName = bandName
+        self.albumTitle = albumTitle
+        self.albumURL = albumURL
+    }
+}
+
+public enum BandcampSourceLinkKind: String, Codable, Hashable, Sendable {
+    case album
+    case artist
+    case track
+    case redirect
+}
+
+/// Bandcamp-related link found in a social source description with nearby source text.
+public struct BandcampSourceLink: Codable, Hashable, Sendable {
+    public let url: URL
+    public let kind: BandcampSourceLinkKind
+    public let context: String
+
+    public init(
+        url: URL,
+        kind: BandcampSourceLinkKind,
+        context: String
+    ) {
+        self.url = url
+        self.kind = kind
+        self.context = context
+    }
+}
+
+/// Digital and physical availability facts extracted from a Bandcamp album page.
+public struct BandcampAlbumAvailability: Codable, Hashable, Sendable {
+    public let bandName: String?
+    public let albumTitle: String?
+    public let albumURL: URL
+    public let hasDigital: Bool
+    public let digitalFormats: [String]
+    public let digitalQualityText: String?
+    public let isHiResAvailable: Bool?
+    public let hasCD: Bool
+    public let isCDAvailable: Bool
+    public let cdAvailabilityText: String?
+
+    public init(
+        bandName: String?,
+        albumTitle: String?,
+        albumURL: URL,
+        hasDigital: Bool,
+        digitalFormats: [String],
+        digitalQualityText: String?,
+        isHiResAvailable: Bool?,
+        hasCD: Bool,
+        isCDAvailable: Bool,
+        cdAvailabilityText: String?
+    ) {
+        self.bandName = bandName
+        self.albumTitle = albumTitle
+        self.albumURL = albumURL
+        self.hasDigital = hasDigital
+        self.digitalFormats = digitalFormats
+        self.digitalQualityText = digitalQualityText
+        self.isHiResAvailable = isHiResAvailable
+        self.hasCD = hasCD
+        self.isCDAvailable = isCDAvailable
+        self.cdAvailabilityText = cdAvailabilityText
+    }
+}
+
 public enum MetalArchivesError: Error, Equatable {
     case missingAlbumHTML(URL)
+    case invalidSearchResponse(URL)
+}
+
+public enum BandcampError: Error, Equatable {
     case invalidSearchResponse(URL)
 }
 
@@ -501,5 +590,56 @@ public protocol MetalArchivesAlbumEnriching: Sendable {
     func enrichAlbum(at albumURL: URL) async throws -> MetalArchivesAlbumEnrichment?
 }
 
+/// Public interface for extracting Bandcamp album availability facts.
+public protocol BandcampAlbumAvailabilityExtracting: Sendable {
+    /// Extracts digital/CD availability from a fetched Bandcamp album page.
+    func extractBandcampAvailability(from page: SocialSourcePage) -> BandcampAlbumAvailability?
+
+    /// Extracts digital/CD availability from raw Bandcamp album HTML.
+    func extractBandcampAvailability(from html: String, finalURL: URL?) -> BandcampAlbumAvailability?
+}
+
+/// Public interface for finding Bandcamp links embedded in source text.
+public protocol BandcampSourceLinkExtracting: Sendable {
+    /// Extracts every Bandcamp-related link from a source description.
+    func bandcampSourceLinks(from text: String) -> [BandcampSourceLink]
+
+    /// Extracts source links likely to belong to a specific band/album mention.
+    func bandcampSourceLinks(
+        from text: String,
+        bandName: String,
+        albumTitle: String,
+        evidence: String?
+    ) -> [BandcampSourceLink]
+}
+
+/// Public interface for searching Bandcamp album pages.
+public protocol BandcampAlbumSearching: Sendable {
+    /// Searches Bandcamp for likely album pages matching a band and album title.
+    func bandcampAlbums(
+        bandName: String,
+        albumTitle: String,
+        limit: Int
+    ) async throws -> [BandcampSearchResult]
+
+    /// Builds a Bandcamp search URL for a band and album title.
+    func bandcampSearchURL(
+        bandName: String,
+        albumTitle: String
+    ) -> URL
+}
+
+/// Public interface for resolving a candidate to Bandcamp availability facts.
+public protocol BandcampAvailabilityChecking: Sendable {
+    /// Resolves a band/album pair and returns Bandcamp availability facts when an exact match is found.
+    func bandcampAvailability(
+        bandName: String,
+        albumTitle: String
+    ) async throws -> BandcampAlbumAvailability?
+
+    /// Fetches and parses a known Bandcamp album page.
+    func bandcampAvailability(at albumURL: URL) async throws -> BandcampAlbumAvailability?
+}
+
 /// Single public source-provider interface exposed by this framework.
-public protocol SourceDataProviding: SocialDescriptionProviding, SourceItemProviding, SourceCandidateSignalFiltering, MetalArchivesAlbumExtracting, MetalArchivesEnrichmentExtracting, MetalArchivesAlbumSearching, MetalArchivesAlbumEnriching {}
+public protocol SourceDataProviding: SocialDescriptionProviding, SourceItemProviding, SourceCandidateSignalFiltering, MetalArchivesAlbumExtracting, MetalArchivesEnrichmentExtracting, MetalArchivesAlbumSearching, MetalArchivesAlbumEnriching, BandcampAlbumAvailabilityExtracting, BandcampSourceLinkExtracting, BandcampAlbumSearching, BandcampAvailabilityChecking {}

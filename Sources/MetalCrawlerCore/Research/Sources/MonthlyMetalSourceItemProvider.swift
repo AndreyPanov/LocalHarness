@@ -85,7 +85,7 @@ struct MonthlyMetalSourceItemProvider: Sendable {
                 from: fileSystem.readData(from: manifestURL)
             )
 
-            return manifest.sources.map {
+            return manifest.sources.filter(\.enabled).map {
                 MonthlyMetalSourceManifestEntry(
                     descriptor: $0,
                     directory: directory

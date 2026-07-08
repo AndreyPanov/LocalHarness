@@ -86,6 +86,7 @@ public struct MonthlyMetalCrawler: Sendable {
         let potentialCandidates = potentialCandidates(from: extractionResults)
         let enrichedCandidates = await enrichPotentialCandidates(
             potentialCandidates,
+            sourceItems: sourceItems,
             sourceDataProvider: SourceDataClient(
                 fetcher: CrawlClientSocialSourceFetcher(crawlClient: context.crawlClient)
             )
@@ -218,10 +219,25 @@ public struct MonthlyMetalCrawler: Sendable {
         return results
     }
 
-    private func enrichPotentialCandidates(_ candidates: [MonthlyMetalCandidate], sourceDataProvider: any SourceDataProviding) async -> [MonthlyMetalEnrichedCandidate] {
+    private func enrichPotentialCandidates(
+        _ candidates: [MonthlyMetalCandidate],
+        sourceItems: [MonthlyMetalSourceItem],
+        sourceDataProvider: any SourceDataProviding
+    ) async -> [MonthlyMetalEnrichedCandidate] {
+        let sourceItemsByItemURL = Dictionary(
+            sourceItems.compactMap { sourceItem in
+                sourceItem.itemURL.map { ($0, sourceItem) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
         var enrichedCandidates: [MonthlyMetalEnrichedCandidate] = []
 
         for candidate in candidates {
+            var resolvedCandidate = candidate
+            var metalArchivesStatus = MonthlyMetalEnrichmentStatus.notFound
+            var metalArchives: MetalArchivesAlbumEnrichment?
+            var metalArchivesErrorMessage: String?
+
             do {
                 let enrichment = if let metalArchivesURL = candidate.metalArchivesURL {
                     try await sourceDataProvider.enrichAlbum(at: metalArchivesURL)
@@ -230,31 +246,125 @@ public struct MonthlyMetalCrawler: Sendable {
                 }
 
                 if let enrichment {
-                    enrichedCandidates.append(MonthlyMetalEnrichedCandidate(
-                        candidate: merge(candidate, with: enrichment),
-                        status: .matched,
-                        metalArchives: enrichment,
-                        errorMessage: nil
-                    ))
-                } else {
-                    enrichedCandidates.append(MonthlyMetalEnrichedCandidate(
-                        candidate: candidate,
-                        status: .notFound,
-                        metalArchives: nil,
-                        errorMessage: nil
-                    ))
+                    resolvedCandidate = merge(candidate, with: enrichment)
+                    metalArchivesStatus = .matched
+                    metalArchives = enrichment
                 }
             } catch {
-                enrichedCandidates.append(MonthlyMetalEnrichedCandidate(
-                    candidate: candidate,
-                    status: .failed,
-                    metalArchives: nil,
-                    errorMessage: String(describing: error)
-                ))
+                metalArchivesStatus = .failed
+                metalArchivesErrorMessage = String(describing: error)
             }
+
+            var bandcampStatus = MonthlyMetalEnrichmentStatus.notFound
+            var bandcamp: BandcampAlbumAvailability?
+            var bandcampErrorMessage: String?
+
+            do {
+                let availability = try await bandcampAvailability(
+                    for: resolvedCandidate,
+                    sourceItemsByItemURL: sourceItemsByItemURL,
+                    sourceDataProvider: sourceDataProvider
+                )
+
+                if let availability {
+                    bandcampStatus = .matched
+                    bandcamp = availability
+                }
+            } catch {
+                bandcampStatus = .failed
+                bandcampErrorMessage = String(describing: error)
+            }
+
+            enrichedCandidates.append(MonthlyMetalEnrichedCandidate(
+                candidate: resolvedCandidate,
+                status: metalArchivesStatus,
+                metalArchives: metalArchives,
+                errorMessage: metalArchivesErrorMessage,
+                bandcampStatus: bandcampStatus,
+                bandcamp: bandcamp,
+                bandcampErrorMessage: bandcampErrorMessage
+            ))
         }
 
         return enrichedCandidates
+    }
+
+    private func bandcampAvailability(
+        for candidate: MonthlyMetalCandidate,
+        sourceItemsByItemURL: [URL: MonthlyMetalSourceItem],
+        sourceDataProvider: any SourceDataProviding
+    ) async throws -> BandcampAlbumAvailability? {
+        let sourceLinks = bandcampSourceLinks(
+            for: candidate,
+            sourceItemsByItemURL: sourceItemsByItemURL,
+            sourceDataProvider: sourceDataProvider
+        )
+
+        for sourceLink in sourceLinks where sourceLink.kind == .album || sourceLink.kind == .redirect {
+            do {
+                guard let availability = try await sourceDataProvider.bandcampAvailability(at: sourceLink.url),
+                      bandcampAvailability(availability, matches: candidate)
+                else {
+                    continue
+                }
+
+                return availability
+            } catch {
+                continue
+            }
+        }
+
+        return try await sourceDataProvider.bandcampAvailability(
+            bandName: candidate.bandName,
+            albumTitle: candidate.albumTitle
+        )
+    }
+
+    private func bandcampSourceLinks(
+        for candidate: MonthlyMetalCandidate,
+        sourceItemsByItemURL: [URL: MonthlyMetalSourceItem],
+        sourceDataProvider: any SourceDataProviding
+    ) -> [BandcampSourceLink] {
+        var seen = Set<URL>()
+        var result: [BandcampSourceLink] = []
+
+        for source in candidate.sources {
+            guard let itemURL = source.itemURL,
+                  let sourceItem = sourceItemsByItemURL[itemURL]
+            else {
+                continue
+            }
+
+            for link in sourceDataProvider.bandcampSourceLinks(
+                from: sourceItem.text,
+                bandName: candidate.bandName,
+                albumTitle: candidate.albumTitle,
+                evidence: source.evidence
+            ) where seen.insert(link.url).inserted {
+                result.append(link)
+            }
+        }
+
+        return result
+    }
+
+    private func bandcampAvailability(
+        _ availability: BandcampAlbumAvailability,
+        matches candidate: MonthlyMetalCandidate
+    ) -> Bool {
+        if let albumTitle = availability.albumTitle,
+           normalizedIdentity(albumTitle) != normalizedIdentity(candidate.albumTitle)
+        {
+            return false
+        }
+
+        if let bandName = availability.bandName,
+           normalizedIdentity(bandName) != normalizedIdentity(candidate.bandName)
+        {
+            return false
+        }
+
+        return true
     }
 
     private func potentialCandidates(
@@ -387,6 +497,17 @@ public struct MonthlyMetalCrawler: Sendable {
         }
 
         return lhs.albumTitle.localizedCaseInsensitiveCompare(rhs.albumTitle) == .orderedAscending
+    }
+
+    private func normalizedIdentity(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .lowercased()
+            .replacingOccurrences(
+                of: #"[^a-z0-9]+"#,
+                with: "",
+                options: .regularExpression
+            )
     }
 }
 

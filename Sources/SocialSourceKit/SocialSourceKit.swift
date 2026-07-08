@@ -30,16 +30,19 @@ public struct URLSessionSocialSourceFetcher: SocialSourceFetching {
 public struct SocialSourceClient: SocialDescriptionProviding {
     private let fetcher: any SocialSourceFetching
     private let youTubeRSSFeedParser: YouTubeRSSFeedParser
+    private let youTubeChannelPageParser: YouTubeChannelPageParser
     private let youTubeVideoDescriptionExtractor: YouTubeVideoDescriptionExtractor
     private let instagramFeedParser: InstagramFeedParser
 
     public init(
         fetcher: any SocialSourceFetching = URLSessionSocialSourceFetcher(),
         youTubeRSSFeedParser: YouTubeRSSFeedParser = YouTubeRSSFeedParser(),
+        youTubeChannelPageParser: YouTubeChannelPageParser = YouTubeChannelPageParser(),
         youTubeVideoDescriptionExtractor: YouTubeVideoDescriptionExtractor = YouTubeVideoDescriptionExtractor()
     ) {
         self.fetcher = fetcher
         self.youTubeRSSFeedParser = youTubeRSSFeedParser
+        self.youTubeChannelPageParser = youTubeChannelPageParser
         self.youTubeVideoDescriptionExtractor = youTubeVideoDescriptionExtractor
         self.instagramFeedParser = InstagramFeedParser()
     }
@@ -105,21 +108,113 @@ public struct SocialSourceClient: SocialDescriptionProviding {
         dateRange: DateInterval,
         options: SocialSourceOptions
     ) async throws -> [SocialSourceItem] {
-        guard let channelID = options.youtubeChannelID else {
-            throw SocialSourceError.missingYouTubeChannelID(url)
+        var entries: [YouTubeFeedEntry] = []
+
+        if let channelID = options.youtubeChannelID,
+           let rssEntries = try await youtubeRSSEntries(channelID: channelID) {
+            entries.append(contentsOf: rssEntries
+                .filter { dateRange.contains($0.publishedAt) }
+                .filter { matchesTitleFilters($0.title, filters: options.youtubeTitleFilters) })
         }
 
+        do {
+            entries.append(contentsOf: try await youtubeChannelPageEntries(
+                from: url,
+                dateRange: dateRange,
+                options: options
+            ))
+        } catch {
+            guard entries.isEmpty else {
+                return try await youtubeItems(from: deduplicatedYouTubeEntries(entries))
+            }
+
+            throw error
+        }
+
+        return try await youtubeItems(from: deduplicatedYouTubeEntries(entries))
+    }
+
+    private func youtubeRSSEntries(channelID: String) async throws -> [YouTubeFeedEntry]? {
         let feedURL = URL(string: "https://www.youtube.com/feeds/videos.xml?channel_id=\(channelID)")!
-        let feedPage = try await fetcher.fetch(SocialSourceRequest(url: feedURL))
-        let entries = youTubeRSSFeedParser.entries(from: feedPage.html ?? feedPage.text)
-            .filter { dateRange.contains($0.publishedAt) }
+        let feedPage: SocialSourcePage
+
+        do {
+            feedPage = try await fetcher.fetch(SocialSourceRequest(
+                url: feedURL,
+                headers: youtubeRequestHeaders
+            ))
+        } catch {
+            return nil
+        }
+
+        let allEntries = youTubeRSSFeedParser.entries(from: feedPage.html ?? feedPage.text)
+        return allEntries.isEmpty ? nil : allEntries
+    }
+
+    private func youtubeChannelPageEntries(
+        from url: URL,
+        dateRange: DateInterval,
+        options: SocialSourceOptions
+    ) async throws -> [YouTubeFeedEntry] {
+        let channelPageURL = youtubeVideosPageURL(from: url)
+        let channelPage = try await fetcher.fetch(SocialSourceRequest(
+            url: channelPageURL,
+            headers: youtubeRequestHeaders
+        ))
+        let entries = youTubeChannelPageParser.entries(from: channelPage.html ?? channelPage.text)
             .filter { matchesTitleFilters($0.title, filters: options.youtubeTitleFilters) }
 
+        var datedEntries: [YouTubeFeedEntry] = []
+
+        for entry in entries {
+            let videoURL = youtubeWatchURL(videoID: entry.videoID)
+            let videoPage = try await fetcher.fetch(SocialSourceRequest(
+                url: videoURL,
+                headers: youtubeRequestHeaders
+            ))
+            guard let publishedAt = youTubeVideoDescriptionExtractor.publishedAt(
+                from: videoPage.html ?? videoPage.text
+            ),
+                  dateRange.contains(publishedAt)
+            else {
+                continue
+            }
+
+            datedEntries.append(YouTubeFeedEntry(
+                videoID: entry.videoID,
+                title: entry.title,
+                publishedAt: publishedAt
+            ))
+        }
+
+        return datedEntries
+    }
+
+    private func deduplicatedYouTubeEntries(_ entries: [YouTubeFeedEntry]) -> [YouTubeFeedEntry] {
+        var seen = Set<String>()
+        var result: [YouTubeFeedEntry] = []
+
+        for entry in entries {
+            guard !seen.contains(entry.videoID) else {
+                continue
+            }
+
+            seen.insert(entry.videoID)
+            result.append(entry)
+        }
+
+        return result
+    }
+
+    private func youtubeItems(from entries: [YouTubeFeedEntry]) async throws -> [SocialSourceItem] {
         var items: [SocialSourceItem] = []
 
         for entry in entries {
-            let videoURL = URL(string: "https://www.youtube.com/watch?v=\(entry.videoID)")!
-            let videoPage = try await fetcher.fetch(SocialSourceRequest(url: videoURL))
+            let videoURL = youtubeWatchURL(videoID: entry.videoID)
+            let videoPage = try await fetcher.fetch(SocialSourceRequest(
+                url: videoURL,
+                headers: youtubeRequestHeaders
+            ))
             let description = youTubeVideoDescriptionExtractor.description(from: videoPage.html ?? videoPage.text)
                 ?? videoPage.text
 
@@ -133,6 +228,39 @@ public struct SocialSourceClient: SocialDescriptionProviding {
         }
 
         return items
+    }
+
+    private var youtubeRequestHeaders: [String: String] {
+        [
+            "Accept-Language": "en-US,en;q=0.9",
+            "Cookie": "SOCS=CAI",
+            "User-Agent": "Mozilla/5.0"
+        ]
+    }
+
+    private func youtubeVideosPageURL(from url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+
+        let path = components.percentEncodedPath
+        if !path.hasSuffix("/videos") {
+            components.percentEncodedPath = path.hasSuffix("/")
+                ? "\(path)videos"
+                : "\(path)/videos"
+        }
+
+        var queryItems = components.queryItems ?? []
+        if !queryItems.contains(where: { $0.name == "hl" }) {
+            queryItems.append(URLQueryItem(name: "hl", value: "en"))
+        }
+        components.queryItems = queryItems
+
+        return components.url ?? url
+    }
+
+    private func youtubeWatchURL(videoID: String) -> URL {
+        URL(string: "https://www.youtube.com/watch?v=\(videoID)")!
     }
 
     private func instagramItems(
@@ -277,6 +405,16 @@ public struct YouTubeFeedEntry: Hashable, Sendable {
     }
 }
 
+public struct YouTubeChannelPageEntry: Hashable, Sendable {
+    public let videoID: String
+    public let title: String
+
+    public init(videoID: String, title: String) {
+        self.videoID = videoID
+        self.title = title
+    }
+}
+
 public struct YouTubeRSSFeedParser: Sendable {
     public init() {}
 
@@ -340,6 +478,54 @@ public struct YouTubeRSSFeedParser: Sendable {
     }
 }
 
+public struct YouTubeChannelPageParser: Sendable {
+    public init() {}
+
+    public func entries(from html: String) -> [YouTubeChannelPageEntry] {
+        let pattern = #""watchEndpoint":\{"videoId":"([^"]+)"[\s\S]{0,4500}?"metadata":\{"lockupMetadataViewModel":\{"title":\{"content":"((?:\\.|[^"\\])*)""#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return []
+        }
+
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        var seen = Set<String>()
+
+        return regex.matches(in: html, range: range).compactMap { match in
+            guard match.numberOfRanges > 2,
+                  let videoIDRange = Range(match.range(at: 1), in: html),
+                  let titleRange = Range(match.range(at: 2), in: html)
+            else {
+                return nil
+            }
+
+            let videoID = String(html[videoIDRange])
+            guard !seen.contains(videoID) else {
+                return nil
+            }
+
+            seen.insert(videoID)
+            return YouTubeChannelPageEntry(
+                videoID: videoID,
+                title: decodeJSONString(String(html[titleRange]))
+            )
+        }
+    }
+
+    private func decodeJSONString(_ value: String) -> String {
+        let jsonString = "\"\(value)\""
+        guard let data = jsonString.data(using: .utf8),
+              let decoded = try? JSONSerialization.jsonObject(with: data) as? String
+        else {
+            return value
+                .replacingOccurrences(of: #"\/"#, with: "/")
+                .replacingOccurrences(of: #"\u0026"#, with: "&")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 public struct YouTubeVideoDescriptionExtractor: Sendable {
     public init() {}
 
@@ -357,6 +543,19 @@ public struct YouTubeVideoDescriptionExtractor: Sendable {
         }
 
         return description
+    }
+
+    public func publishedAt(from html: String) -> Date? {
+        let dateText = firstMatch(in: html, pattern: #""uploadDate":"([^"]+)""#)
+            ?? firstMatch(in: html, pattern: #""publishDate":"([^"]+)""#)
+            ?? firstMatch(in: html, pattern: #"datePublished"\s+content="([^"]+)""#)
+        guard let dateText else {
+            return nil
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: dateText)
     }
 
     private func firstMatch(in value: String, pattern: String) -> String? {

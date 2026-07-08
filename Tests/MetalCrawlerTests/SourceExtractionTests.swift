@@ -120,7 +120,7 @@ import Testing
 
     #expect(result.errorMessage == nil)
     #expect(result.candidates.isEmpty)
-    #expect(request.systemPrompt.contains("Do not extract songs"))
+    #expect(request.systemPrompt.contains("songs or tracks"))
     #expect(request.systemPrompt.contains("return no candidates from that song list"))
     #expect(request.userPrompt.contains("Ignore sections headed \"Songs\""))
     #expect(request.userPrompt.contains("Band: Song title"))

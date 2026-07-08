@@ -4,13 +4,15 @@
       "name": "BangerTV",
       "kind": "youtube_channel",
       "url": "https://www.youtube.com/@BangerTV",
-      "channelID": "UCeUMZ4t3ezEJFhXHJg9rshQ"
+      "channelID": "UCeUMZ4t3ezEJFhXHJg9rshQ",
+      "enabled": true
     },
     {
       "name": "InfidelAmsterdam Instagram",
       "kind": "instagram_profile",
       "url": "https://www.instagram.com/infidelamsterdam/",
-      "username": "infidelamsterdam"
+      "username": "infidelamsterdam",
+      "enabled": false
     }
   ]
 }
