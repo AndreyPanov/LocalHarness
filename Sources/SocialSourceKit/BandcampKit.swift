@@ -273,6 +273,12 @@ public struct BandcampAlbumPageExtractor: BandcampAlbumAvailabilityExtracting {
 
     public init() {}
 
+    private struct CDAvailabilityFacts {
+        let hasCD: Bool
+        let isAvailable: Bool
+        let text: String?
+    }
+
     public func extractBandcampAvailability(from page: SocialSourcePage) -> BandcampAlbumAvailability? {
         guard let html = page.html else {
             return nil
@@ -296,8 +302,7 @@ public struct BandcampAlbumPageExtractor: BandcampAlbumAvailabilityExtracting {
             || lowercasedText.contains("high-quality download")
         let digitalFormats = digitalFormats(from: text)
         let digitalQualityText = digitalQualityText(from: text)
-        let hasCD = containsCD(in: text)
-        let cdAvailabilityText = cdAvailabilityText(from: text)
+        let cdAvailability = cdAvailabilityFacts(from: html, pageText: text)
 
         return BandcampAlbumAvailability(
             bandName: bandName(from: html),
@@ -307,9 +312,9 @@ public struct BandcampAlbumPageExtractor: BandcampAlbumAvailabilityExtracting {
             digitalFormats: digitalFormats,
             digitalQualityText: digitalQualityText,
             isHiResAvailable: isHiResAvailable(from: digitalQualityText),
-            hasCD: hasCD,
-            isCDAvailable: hasCD && !isSoldOut(text),
-            cdAvailabilityText: cdAvailabilityText
+            hasCD: cdAvailability.hasCD,
+            isCDAvailable: cdAvailability.isAvailable,
+            cdAvailabilityText: cdAvailability.text
         )
     }
 
@@ -419,6 +424,101 @@ public struct BandcampAlbumPageExtractor: BandcampAlbumAvailabilityExtracting {
 
     private func isSoldOut(_ text: String) -> Bool {
         text.range(of: #"sold\s+out|not\s+available"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private func cdAvailabilityFacts(from html: String, pageText: String) -> CDAvailabilityFacts {
+        let cdBlocks = buyItemBlocks(from: html)
+            .map { block in (html: block, text: cleanBandcampHTML(block)) }
+            .filter { containsCD(in: $0.text) }
+
+        if let availableBlock = cdBlocks.first(where: { !isSoldOut($0.text) }) {
+            return CDAvailabilityFacts(
+                hasCD: true,
+                isAvailable: true,
+                text: cdAvailabilitySummary(from: availableBlock.html, fallbackText: availableBlock.text)
+            )
+        }
+
+        if let unavailableBlock = cdBlocks.first {
+            return CDAvailabilityFacts(
+                hasCD: true,
+                isAvailable: false,
+                text: cdAvailabilitySummary(from: unavailableBlock.html, fallbackText: unavailableBlock.text)
+            )
+        }
+
+        let hasCD = containsCD(in: pageText)
+
+        return CDAvailabilityFacts(
+            hasCD: hasCD,
+            isAvailable: hasCD && !isSoldOut(pageText),
+            text: cdAvailabilityText(from: pageText)
+        )
+    }
+
+    private func buyItemBlocks(from html: String) -> [String] {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"<([a-z][a-z0-9]*)\b[^>]*class\s*=\s*["'][^"']*\bbuyItem\b[^"']*["'][^>]*>([\s\S]*?)</\1>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        ) else {
+            return []
+        }
+
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+
+        return regex.matches(in: html, range: range).compactMap { match in
+            guard match.numberOfRanges > 2,
+                  let captureRange = Range(match.range(at: 2), in: html)
+            else {
+                return nil
+            }
+
+            return String(html[captureRange])
+        }
+    }
+
+    private func cdAvailabilitySummary(from html: String, fallbackText: String) -> String? {
+        let parts = [
+            htmlText(
+                from: html,
+                pattern: #"<span[^>]*class\s*=\s*["'][^"']*\bbuyItemPackageTitle\b[^"']*["'][^>]*>([\s\S]*?)</span>"#
+            ),
+            htmlText(
+                from: html,
+                pattern: #"<div[^>]*class\s*=\s*["'][^"']*\bmerchtype\b[^"']*["'][^>]*>([\s\S]*?)</div>"#
+            ),
+            firstBandcampMatch(
+                in: fallbackText,
+                pattern: #"(ships\s+out\s+within\s+\d+\s+\w+)"#
+            ),
+            firstBandcampMatch(
+                in: fallbackText,
+                pattern: #"(Buy\s+Compact\s+Disc|Buy\s+CD|Add\s+to\s+cart)"#
+            )
+        ]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if !parts.isEmpty {
+            var uniqueParts: [String] = []
+
+            for part in parts where !uniqueParts.contains(part) {
+                uniqueParts.append(part)
+            }
+
+            return uniqueParts.joined(separator: " | ")
+        }
+
+        return cdAvailabilityText(from: fallbackText)
+    }
+
+    private func htmlText(from html: String, pattern: String) -> String? {
+        guard let value = firstBandcampMatch(in: html, pattern: pattern) else {
+            return nil
+        }
+
+        let cleaned = cleanBandcampHTML(value)
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     private func cdAvailabilityText(from text: String) -> String? {
@@ -574,6 +674,16 @@ private func allBandcampMatches(in value: String, pattern: String) -> [String] {
 
 private func cleanBandcampHTML(_ value: String) -> String {
     value
+        .replacingOccurrences(
+            of: #"<script\b[\s\S]*?</script>"#,
+            with: " ",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        .replacingOccurrences(
+            of: #"<style\b[\s\S]*?</style>"#,
+            with: " ",
+            options: [.regularExpression, .caseInsensitive]
+        )
         .replacingOccurrences(
             of: #"<!--[\s\S]*?-->"#,
             with: " ",

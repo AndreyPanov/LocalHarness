@@ -171,6 +171,78 @@ import Testing
     #expect(availability.isCDAvailable)
 }
 
+@Test func bandcampAlbumExtractorKeepsAvailableCDWhenOtherMerchIsSoldOut() throws {
+    let url = URL(string: "https://beholdtheelder.bandcamp.com/album/through-zero")!
+    let html = """
+    <meta property="og:title" content="Through Zero" />
+    <h2 class="trackTitle">Through Zero</h2>
+    <span itemprop="byArtist"><a>Elder</a></span>
+    <script type="application/ld+json">
+    {"@type":"Product","name":"Compact Disc (CD)"},{"@type":"PropertyValue","name":"image_ids","value":[43810556]}
+    </script>
+    <li class="buyItem">
+      <h3 class="hd lowHeadroom">
+        <span class="buyItemPackageTitle primaryText">US ORDERS: Elder - Through Zero Limited Digipak CD w/Booklet</span>
+        <div class="merchtype secondaryText">Compact Disc (CD) + Digital Album</div>
+      </h3>
+      <div class="bd">
+        Limited digipak includes lyric &amp; art booklet!
+        Includes unlimited streaming of Through Zero via the free Bandcamp app, plus high-quality download in MP3, FLAC and more.
+        Download available in 16-bit/44.1kHz.
+      </div>
+      <div class="buyItemEdition secondaryText">ships out within <span class="end">7 days</span></div>
+      <button class="order_package_link buy-link">Buy Compact Disc</button>
+    </li>
+    <li class="buyItem">
+      <h3 class="hd lowHeadroom">
+        <span class="buyItemPackageTitle primaryText">Elder - Through Zero LP</span>
+        <div class="merchtype secondaryText">Record/Vinyl + Digital Album</div>
+      </h3>
+      <h4 class="notable">Sold Out</h4>
+    </li>
+    """
+
+    let availability = try #require(BandcampAlbumPageExtractor.shared.extractBandcampAvailability(
+        from: html,
+        finalURL: url
+    ))
+
+    #expect(availability.albumURL == url)
+    #expect(availability.bandName == "Elder")
+    #expect(availability.albumTitle == "Through Zero")
+    #expect(availability.hasCD)
+    #expect(availability.isCDAvailable)
+    #expect(availability.cdAvailabilityText?.contains("US ORDERS: Elder - Through Zero Limited Digipak CD w/Booklet") == true)
+    #expect(availability.cdAvailabilityText?.contains("Compact Disc (CD) + Digital Album") == true)
+    #expect(availability.cdAvailabilityText?.contains("ships out within 7 days") == true)
+    #expect(availability.cdAvailabilityText?.contains("@type") == false)
+    #expect(availability.cdAvailabilityText?.contains("PropertyValue") == false)
+}
+
+@Test func bandcampAlbumExtractorMarksSoldOutCDBlockUnavailable() throws {
+    let url = URL(string: "https://example.bandcamp.com/album/sold-out")!
+    let html = """
+    <h2 class="trackTitle">Sold Out</h2>
+    <span itemprop="byArtist"><a>Example</a></span>
+    <li class="buyItem">
+      <h3 class="hd lowHeadroom">
+        <span class="buyItemPackageTitle primaryText">Example CD</span>
+        <div class="merchtype secondaryText">Compact Disc (CD) + Digital Album</div>
+      </h3>
+      <h4 class="notable">Sold Out</h4>
+    </li>
+    """
+
+    let availability = try #require(BandcampAlbumPageExtractor.shared.extractBandcampAvailability(
+        from: html,
+        finalURL: url
+    ))
+
+    #expect(availability.hasCD)
+    #expect(availability.isCDAvailable == false)
+    #expect(availability.cdAvailabilityText?.contains("Example CD") == true)
+}
+
 @Test func bandcampAvailabilityClientResolvesExactAlbumMatch() async throws {
     let searchClient = BandcampSearchClient(
         fetcher: DictionarySocialSourceFetcher(pages: [:])
