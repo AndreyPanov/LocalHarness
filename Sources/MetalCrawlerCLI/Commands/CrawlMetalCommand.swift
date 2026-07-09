@@ -30,11 +30,33 @@ struct CrawlMetalCommand: AsyncParsableCommand {
     @Option(help: "Request timeout in seconds for source candidate extraction.")
     var llmTimeout: Double = 300
 
+    @Flag(help: "Generate final recommendations with the local recommendation LLM.")
+    var recommend = false
+
+    @Option(help: "OpenAI-compatible local recommendation LLM base URL.")
+    var recommendationLLMBaseURL = LocalLLMModelPreset.recommendations120B.baseURL.absoluteString
+
+    @Option(help: "Model name sent to the recommendation LLM server. Defaults to LOCAL_METAL_CRAWLER_RECOMMENDATION_LLM_MODEL or the 120B preset.")
+    var recommendationLLMModel: String?
+
+    @Option(help: "Temperature for recommendation generation.")
+    var recommendationTemperature: Double = 0.2
+
+    @Option(help: "Maximum completion tokens for recommendation generation.")
+    var recommendationMaxTokens: Int = 8192
+
+    @Option(help: "Request timeout in seconds for recommendation generation.")
+    var recommendationTimeout: Double = 900
+
+    @Option(help: "Maximum recommendations to return.")
+    var recommendationLimit: Int = 30
+
     func run() async throws {
         let crawler = MonthlyMetalCrawler()
         let result = try await crawler.listCandidates(
             month: month,
-            sourceExtraction: try sourceExtractionConfiguration()
+            sourceExtraction: try sourceExtractionConfiguration(),
+            recommendations: try recommendationConfiguration()
         )
 
         print("Monthly metal crawler candidates for \(month)")
@@ -44,6 +66,7 @@ struct CrawlMetalCommand: AsyncParsableCommand {
         print("Deduplicated potential candidates: \(result.potentialCandidates.count)")
         print("Metal Archives matches: \(result.enrichedCandidates.filter { $0.status == .matched }.count)")
         print("Bandcamp matches: \(result.enrichedCandidates.filter { $0.bandcampStatus == .matched }.count)")
+        print("Recommendations: \(result.recommendations.count)")
         print("")
 
         if result.potentialCandidates.isEmpty {
@@ -101,6 +124,18 @@ struct CrawlMetalCommand: AsyncParsableCommand {
         if let sourceExtractionArtifactURL = result.sourceExtractionArtifactURL {
             print("Source extracted candidates: \(sourceExtractionArtifactURL.path)")
         }
+
+        if let recommendationContextArtifactURL = result.recommendationContextArtifactURL {
+            print("Recommendation context: \(recommendationContextArtifactURL.path)")
+        }
+
+        if let recommendationsArtifactURL = result.recommendationsArtifactURL {
+            print("Recommendation artifact: \(recommendationsArtifactURL.path)")
+        }
+
+        if let recommendationsHTMLURL = result.recommendationsHTMLURL {
+            print("Recommendation HTML: \(recommendationsHTMLURL.path)")
+        }
     }
 
     private func sourceExtractionConfiguration() throws -> MonthlyMetalSourceExtractionConfiguration? {
@@ -120,6 +155,31 @@ struct CrawlMetalCommand: AsyncParsableCommand {
             temperature: llmTemperature,
             maxTokens: llmMaxTokens,
             requestTimeout: llmTimeout
+        )
+    }
+
+    private func recommendationConfiguration() throws -> MonthlyMetalRecommendationConfiguration? {
+        guard recommend else {
+            return nil
+        }
+
+        guard recommendationLimit > 0 else {
+            throw ValidationError("--recommendation-limit must be greater than 0")
+        }
+
+        guard let baseURL = URL(string: recommendationLLMBaseURL) else {
+            throw ValidationError("Invalid --recommendation-llm-base-url: \(recommendationLLMBaseURL)")
+        }
+
+        return MonthlyMetalRecommendationConfiguration(
+            baseURL: baseURL,
+            model: recommendationLLMModel
+                ?? ProcessInfo.processInfo.environment["LOCAL_METAL_CRAWLER_RECOMMENDATION_LLM_MODEL"]
+                ?? LocalLLMModelPreset.recommendations120B.model,
+            temperature: recommendationTemperature,
+            maxTokens: recommendationMaxTokens,
+            requestTimeout: recommendationTimeout,
+            limit: recommendationLimit
         )
     }
 

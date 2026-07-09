@@ -75,7 +75,8 @@ public struct MetalArchivesAlbumPageExtractor: MetalArchivesAlbumExtracting, Met
             reviewCount: reviewSummary?.reviewCount,
             averageReviewScore: reviewSummary?.averageScore,
             yearsActive: nil,
-            fullTimeMemberCount: nil
+            fullTimeMemberCount: nil,
+            coverImageURL: coverImageURL(from: html)
         )
     }
 
@@ -193,6 +194,24 @@ public struct MetalArchivesAlbumPageExtractor: MetalArchivesAlbumExtracting, Met
                let url = URL(string: value)
             {
                 return urlWithoutFragment(url)
+            }
+        }
+
+        return nil
+    }
+
+    private func coverImageURL(from html: String) -> URL? {
+        let patterns = [
+            #"<a[^>]*id\s*=\s*["']cover["'][^>]*href\s*=\s*["']([^"']+)["']"#,
+            #"<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*id\s*=\s*["']cover["']"#,
+            #"<div[^>]*id\s*=\s*["']album_cover["'][\s\S]*?<img[^>]*src\s*=\s*["']([^"']+)["']"#
+        ]
+
+        for pattern in patterns {
+            if let value = firstMatch(in: html, pattern: pattern),
+               let url = URL(string: cleanHTML(value))
+            {
+                return url
             }
         }
 
@@ -602,7 +621,8 @@ public struct MetalArchivesEnrichmentClient: MetalArchivesAlbumEnriching {
             reviewCount: albumEnrichment.reviewCount,
             averageReviewScore: albumEnrichment.averageReviewScore,
             yearsActive: bandEnrichment?.yearsActive,
-            fullTimeMemberCount: bandEnrichment?.fullTimeMemberCount
+            fullTimeMemberCount: bandEnrichment?.fullTimeMemberCount,
+            coverImageURL: albumEnrichment.coverImageURL
         )
     }
 

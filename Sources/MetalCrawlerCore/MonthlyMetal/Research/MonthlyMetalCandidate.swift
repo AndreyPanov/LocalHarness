@@ -6,6 +6,9 @@ public struct MonthlyMetalCandidateListResult: Sendable {
     public let runDirectory: URL
     public let potentialCandidatesArtifactURL: URL
     public let enrichedCandidatesArtifactURL: URL
+    public let recommendationContextArtifactURL: URL?
+    public let recommendationsArtifactURL: URL?
+    public let recommendationsHTMLURL: URL?
     public let sourceItemsArtifactURL: URL
     public let sourceExtractionArtifactURL: URL?
     public let sourceItems: [MonthlyMetalSourceItem]
@@ -13,24 +16,32 @@ public struct MonthlyMetalCandidateListResult: Sendable {
     public let extractedCandidateMentionCount: Int
     public let potentialCandidates: [MonthlyMetalCandidate]
     public let enrichedCandidates: [MonthlyMetalEnrichedCandidate]
+    public let recommendations: [MonthlyMetalRecommendation]
 
     public init(
         runID: RunID,
         runDirectory: URL,
         potentialCandidatesArtifactURL: URL,
         enrichedCandidatesArtifactURL: URL,
+        recommendationContextArtifactURL: URL? = nil,
+        recommendationsArtifactURL: URL? = nil,
+        recommendationsHTMLURL: URL? = nil,
         sourceItemsArtifactURL: URL,
         sourceExtractionArtifactURL: URL? = nil,
         sourceItems: [MonthlyMetalSourceItem],
         extractedSourceItemCount: Int,
         extractedCandidateMentionCount: Int,
         potentialCandidates: [MonthlyMetalCandidate],
-        enrichedCandidates: [MonthlyMetalEnrichedCandidate]
+        enrichedCandidates: [MonthlyMetalEnrichedCandidate],
+        recommendations: [MonthlyMetalRecommendation] = []
     ) {
         self.runID = runID
         self.runDirectory = runDirectory
         self.potentialCandidatesArtifactURL = potentialCandidatesArtifactURL
         self.enrichedCandidatesArtifactURL = enrichedCandidatesArtifactURL
+        self.recommendationContextArtifactURL = recommendationContextArtifactURL
+        self.recommendationsArtifactURL = recommendationsArtifactURL
+        self.recommendationsHTMLURL = recommendationsHTMLURL
         self.sourceItemsArtifactURL = sourceItemsArtifactURL
         self.sourceExtractionArtifactURL = sourceExtractionArtifactURL
         self.sourceItems = sourceItems
@@ -38,6 +49,7 @@ public struct MonthlyMetalCandidateListResult: Sendable {
         self.extractedCandidateMentionCount = extractedCandidateMentionCount
         self.potentialCandidates = potentialCandidates
         self.enrichedCandidates = enrichedCandidates
+        self.recommendations = recommendations
     }
 }
 

@@ -278,6 +278,7 @@ public struct MetalArchivesAlbumEnrichment: Codable, Hashable, Sendable {
     public let averageReviewScore: Double?
     public let yearsActive: Int?
     public let fullTimeMemberCount: Int?
+    public let coverImageURL: URL?
 
     public init(
         bandName: String,
@@ -294,7 +295,8 @@ public struct MetalArchivesAlbumEnrichment: Codable, Hashable, Sendable {
         reviewCount: Int?,
         averageReviewScore: Double?,
         yearsActive: Int?,
-        fullTimeMemberCount: Int?
+        fullTimeMemberCount: Int?,
+        coverImageURL: URL? = nil
     ) {
         self.bandName = bandName
         self.albumTitle = albumTitle
@@ -311,6 +313,7 @@ public struct MetalArchivesAlbumEnrichment: Codable, Hashable, Sendable {
         self.averageReviewScore = averageReviewScore
         self.yearsActive = yearsActive
         self.fullTimeMemberCount = fullTimeMemberCount
+        self.coverImageURL = coverImageURL
     }
 }
 
@@ -393,6 +396,7 @@ public struct BandcampAlbumAvailability: Codable, Hashable, Sendable {
     public let hasCD: Bool
     public let isCDAvailable: Bool
     public let cdAvailabilityText: String?
+    public let coverImageURL: URL?
 
     public init(
         bandName: String?,
@@ -404,7 +408,8 @@ public struct BandcampAlbumAvailability: Codable, Hashable, Sendable {
         isHiResAvailable: Bool?,
         hasCD: Bool,
         isCDAvailable: Bool,
-        cdAvailabilityText: String?
+        cdAvailabilityText: String?,
+        coverImageURL: URL? = nil
     ) {
         self.bandName = bandName
         self.albumTitle = albumTitle
@@ -416,6 +421,7 @@ public struct BandcampAlbumAvailability: Codable, Hashable, Sendable {
         self.hasCD = hasCD
         self.isCDAvailable = isCDAvailable
         self.cdAvailabilityText = cdAvailabilityText
+        self.coverImageURL = coverImageURL
     }
 }
 

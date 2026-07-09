@@ -314,7 +314,8 @@ public struct BandcampAlbumPageExtractor: BandcampAlbumAvailabilityExtracting {
             isHiResAvailable: isHiResAvailable(from: digitalQualityText),
             hasCD: cdAvailability.hasCD,
             isCDAvailable: cdAvailability.isAvailable,
-            cdAvailabilityText: cdAvailability.text
+            cdAvailabilityText: cdAvailability.text,
+            coverImageURL: coverImageURL(from: html)
         )
     }
 
@@ -351,6 +352,24 @@ public struct BandcampAlbumPageExtractor: BandcampAlbumAvailabilityExtracting {
                 if !cleaned.isEmpty {
                     return cleaned
                 }
+            }
+        }
+
+        return nil
+    }
+
+    private func coverImageURL(from html: String) -> URL? {
+        let patterns = [
+            #"<meta[^>]*(?:property|name)\s*=\s*["']og:image["'][^>]*content\s*=\s*["']([^"']+)["']"#,
+            #"<meta[^>]*content\s*=\s*["']([^"']+)["'][^>]*(?:property|name)\s*=\s*["']og:image["']"#,
+            #"<meta[^>]*(?:property|name)\s*=\s*["']twitter:image["'][^>]*content\s*=\s*["']([^"']+)["']"#
+        ]
+
+        for pattern in patterns {
+            if let value = firstBandcampMatch(in: html, pattern: pattern),
+               let url = URL(string: cleanBandcampHTML(value))
+            {
+                return urlWithoutQueryOrFragment(url)
             }
         }
 

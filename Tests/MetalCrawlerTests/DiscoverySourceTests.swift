@@ -142,6 +142,7 @@ import Testing
     let url = URL(string: "https://astriferous.bandcamp.com/album/atavistic-unraveling")!
     let html = """
     <meta property="og:title" content="Atavistic Unraveling" />
+    <meta property="og:image" content="https://f4.bcbits.com/img/a1234567890_10.jpg" />
     <h2 class="trackTitle">Atavistic Unraveling</h2>
     <span itemprop="byArtist"><a>Astriferous</a></span>
     <div class="buyItem digital">
@@ -169,6 +170,7 @@ import Testing
     #expect(availability.isHiResAvailable == true)
     #expect(availability.hasCD)
     #expect(availability.isCDAvailable)
+    #expect(availability.coverImageURL == URL(string: "https://f4.bcbits.com/img/a1234567890_10.jpg"))
 }
 
 @Test func bandcampAlbumExtractorKeepsAvailableCDWhenOtherMerchIsSoldOut() throws {
@@ -1149,6 +1151,7 @@ import Testing
     #expect(enriched.metalArchives?.fullTimeMemberCount == 2)
     #expect(enriched.metalArchives?.reviewCount == 2)
     #expect(enriched.metalArchives?.averageReviewScore == 92)
+    #expect(enriched.metalArchives?.coverImageURL == URL(string: "https://www.metal-archives.com/images/1/3/6/9/1369559.jpeg?0948"))
     #expect(enriched.bandcampStatus == .matched)
     #expect(enriched.bandcamp?.albumURL == bandcampAlbumURL)
     #expect(enriched.bandcamp?.hasDigital == true)

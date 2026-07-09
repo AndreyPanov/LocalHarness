@@ -57,7 +57,11 @@ public struct MonthlyMetalCrawler: Sendable {
         self.fileSystem = fileSystem
     }
 
-    public func listCandidates(month rawMonth: String, sourceExtraction: MonthlyMetalSourceExtractionConfiguration? = nil) async throws -> MonthlyMetalCandidateListResult {
+    public func listCandidates(
+        month rawMonth: String,
+        sourceExtraction: MonthlyMetalSourceExtractionConfiguration? = nil,
+        recommendations: MonthlyMetalRecommendationConfiguration? = nil
+    ) async throws -> MonthlyMetalCandidateListResult {
         
         let month = try parseMonth(rawMonth)
         let runID = runIDProvider()
@@ -91,12 +95,18 @@ public struct MonthlyMetalCrawler: Sendable {
                 fetcher: CrawlClientSocialSourceFetcher(crawlClient: context.crawlClient)
             )
         )
+        let recommendationOutput = await recommendIfNeeded(
+            month: rawMonth,
+            enrichedCandidates: enrichedCandidates,
+            configuration: recommendations
+        )
         let artifacts = try writeArtifacts(
             month: rawMonth,
             sourceItems: sourceItems,
             extractionResults: extractionResults,
             potentialCandidates: potentialCandidates,
             enrichedCandidates: enrichedCandidates,
+            recommendationOutput: recommendationOutput,
             runDirectory: runDirectory
         )
 
@@ -105,13 +115,17 @@ public struct MonthlyMetalCrawler: Sendable {
             runDirectory: runDirectory,
             potentialCandidatesArtifactURL: artifacts.potentialCandidates,
             enrichedCandidatesArtifactURL: artifacts.enrichedCandidates,
+            recommendationContextArtifactURL: artifacts.recommendationContext,
+            recommendationsArtifactURL: artifacts.recommendations,
+            recommendationsHTMLURL: artifacts.recommendationsHTML,
             sourceItemsArtifactURL: artifacts.sourceItems,
             sourceExtractionArtifactURL: artifacts.sourceExtraction,
             sourceItems: sourceItems,
             extractedSourceItemCount: extractionResults.count,
             extractedCandidateMentionCount: extractedCandidateMentionCount,
             potentialCandidates: potentialCandidates,
-            enrichedCandidates: enrichedCandidates
+            enrichedCandidates: enrichedCandidates,
+            recommendations: recommendationOutput?.artifact.recommendations ?? []
         )
     }
 
@@ -138,6 +152,7 @@ public struct MonthlyMetalCrawler: Sendable {
         extractionResults: [MonthlyMetalSourceExtractionResult],
         potentialCandidates: [MonthlyMetalCandidate],
         enrichedCandidates: [MonthlyMetalEnrichedCandidate],
+        recommendationOutput: MonthlyMetalRecommendationOutput?,
         runDirectory: URL
     ) throws -> MonthlyMetalRunArtifacts {
         let potentialCandidatesURL = try writeArtifact(
@@ -176,10 +191,34 @@ public struct MonthlyMetalCrawler: Sendable {
                 runDirectory: runDirectory
             )
         }
+        let recommendationContextURL = try recommendationOutput.map {
+            try writeArtifact(
+                fileName: "monthly-metal-recommendation-context.json",
+                data: $0.context,
+                runDirectory: runDirectory
+            )
+        }
+        let recommendationsURL = try recommendationOutput.map {
+            try writeArtifact(
+                fileName: "monthly-metal-recommendations.json",
+                data: $0.artifact,
+                runDirectory: runDirectory
+            )
+        }
+        let recommendationsHTMLURL = try recommendationOutput.map {
+            try fileSystem.writeText(
+                $0.html,
+                fileName: "monthly-metal-recommendations.html",
+                in: runDirectory
+            )
+        }
 
         return MonthlyMetalRunArtifacts(
             potentialCandidates: potentialCandidatesURL,
             enrichedCandidates: enrichedCandidatesURL,
+            recommendationContext: recommendationContextURL,
+            recommendations: recommendationsURL,
+            recommendationsHTML: recommendationsHTMLURL,
             sourceItems: sourceItemsURL,
             sourceExtraction: sourceExtractionURL
         )
@@ -217,6 +256,175 @@ public struct MonthlyMetalCrawler: Sendable {
         }
 
         return results
+    }
+
+    private func recommendIfNeeded(
+        month: String,
+        enrichedCandidates: [MonthlyMetalEnrichedCandidate],
+        configuration: MonthlyMetalRecommendationConfiguration?
+    ) async -> MonthlyMetalRecommendationOutput? {
+        guard let configuration else {
+            return nil
+        }
+
+        let context = recommendationContext(
+            month: month,
+            enrichedCandidates: enrichedCandidates
+        )
+
+        guard !context.candidates.isEmpty else {
+            let artifact = MonthlyMetalRecommendationArtifact(
+                month: month,
+                model: configuration.model,
+                promptVersion: LocalLLMMonthlyMetalRecommender.promptVersion,
+                recommendations: [],
+                rawResponse: nil,
+                errorMessage: "No enriched candidates available for recommendation."
+            )
+            return MonthlyMetalRecommendationOutput(
+                context: context,
+                artifact: artifact,
+                html: MonthlyMetalRecommendationHTMLRenderer().render(
+                    month: month,
+                    context: context,
+                    artifact: artifact
+                )
+            )
+        }
+
+        let providerConfiguration = MonthlyMetalSourceExtractionConfiguration(
+            baseURL: configuration.baseURL,
+            model: configuration.model,
+            temperature: configuration.temperature,
+            maxTokens: configuration.maxTokens,
+            requestTimeout: configuration.requestTimeout
+        )
+        let recommender = LocalLLMMonthlyMetalRecommender(
+            provider: llmProviderFactory(providerConfiguration),
+            model: configuration.model,
+            temperature: configuration.temperature,
+            maxTokens: configuration.maxTokens,
+            limit: configuration.limit
+        )
+        let artifact = await recommender.recommend(
+            month: month,
+            context: context
+        )
+
+        return MonthlyMetalRecommendationOutput(
+            context: context,
+            artifact: artifact,
+            html: MonthlyMetalRecommendationHTMLRenderer().render(
+                month: month,
+                context: context,
+                artifact: artifact
+            )
+        )
+    }
+
+    private func recommendationContext(
+        month: String,
+        enrichedCandidates: [MonthlyMetalEnrichedCandidate]
+    ) -> MonthlyMetalRecommendationContextArtifact {
+        MonthlyMetalRecommendationContextArtifact(
+            month: month,
+            candidates: enrichedCandidates.map { recommendationCandidateContext(from: $0) }
+        )
+    }
+
+    private func recommendationCandidateContext(
+        from enrichedCandidate: MonthlyMetalEnrichedCandidate
+    ) -> MonthlyMetalRecommendationCandidateContext {
+        let candidate = enrichedCandidate.candidate
+        let metalArchives = enrichedCandidate.metalArchives.map {
+            MonthlyMetalRecommendationMetalArchivesContext(
+                genre: $0.genre,
+                lyricalThemes: $0.lyricalThemes,
+                fullLengthAlbumCount: $0.fullLengthAlbumCount,
+                reviewCount: $0.reviewCount,
+                averageReviewScore: $0.averageReviewScore,
+                yearsActive: $0.yearsActive,
+                fullTimeMemberCount: $0.fullTimeMemberCount
+            )
+        }
+        let bandcamp = enrichedCandidate.bandcamp.map {
+            MonthlyMetalRecommendationBandcampContext(
+                hasDigital: $0.hasDigital,
+                digitalFormats: $0.digitalFormats,
+                digitalQualityText: $0.digitalQualityText,
+                isHiResAvailable: $0.isHiResAvailable,
+                hasCD: $0.hasCD,
+                isCDAvailable: $0.isCDAvailable,
+                cdAvailabilityText: $0.cdAvailabilityText
+            )
+        }
+
+        return MonthlyMetalRecommendationCandidateContext(
+            bandName: candidate.bandName,
+            albumTitle: candidate.albumTitle,
+            releaseType: candidate.releaseType,
+            releaseDateText: candidate.releaseDate
+                .map { MonthlyMetalDateFormatter.shared.format($0) }
+                ?? candidate.releaseDateText,
+            labelName: candidate.labelName,
+            metalArchivesURL: candidate.metalArchivesURL,
+            bandcampURL: enrichedCandidate.bandcamp?.albumURL,
+            coverImageURL: enrichedCandidate.bandcamp?.coverImageURL
+                ?? enrichedCandidate.metalArchives?.coverImageURL,
+            sourceCount: candidate.sources.count,
+            sourceSignals: orderedUnique(candidate.sources.compactMap(\.signal)),
+            sourceEvidence: orderedUnique(candidate.sources.compactMap(\.evidence)),
+            metalArchives: metalArchives,
+            bandcamp: bandcamp,
+            issues: recommendationIssues(for: enrichedCandidate)
+        )
+    }
+
+    private func recommendationIssues(
+        for enrichedCandidate: MonthlyMetalEnrichedCandidate
+    ) -> [String] {
+        var issues: [String] = []
+
+        switch enrichedCandidate.status {
+        case .matched:
+            break
+        case .notFound:
+            issues.append("metal_archives_not_found")
+        case .failed:
+            issues.append("metal_archives_failed")
+        }
+
+        switch enrichedCandidate.bandcampStatus {
+        case .matched:
+            break
+        case .notFound:
+            issues.append("bandcamp_not_found")
+        case .failed:
+            issues.append("bandcamp_failed")
+        case nil:
+            issues.append("bandcamp_not_checked")
+        }
+
+        return issues
+    }
+
+    private func orderedUnique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for value in values {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !trimmed.isEmpty,
+                  seen.insert(trimmed).inserted
+            else {
+                continue
+            }
+
+            result.append(trimmed)
+        }
+
+        return result
     }
 
     private func enrichPotentialCandidates(
@@ -529,8 +737,17 @@ private struct MonthlyMetalSourceItemsArtifact: Encodable {
 private struct MonthlyMetalRunArtifacts {
     let potentialCandidates: URL
     let enrichedCandidates: URL
+    let recommendationContext: URL?
+    let recommendations: URL?
+    let recommendationsHTML: URL?
     let sourceItems: URL
     let sourceExtraction: URL?
+}
+
+private struct MonthlyMetalRecommendationOutput {
+    let context: MonthlyMetalRecommendationContextArtifact
+    let artifact: MonthlyMetalRecommendationArtifact
+    let html: String
 }
 
 private struct UnavailableLLMExtractionFallback: LLMExtractionFallback {

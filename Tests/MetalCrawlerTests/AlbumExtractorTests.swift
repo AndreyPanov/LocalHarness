@@ -57,6 +57,7 @@ import Testing
     #expect(enrichment.releaseType == "Full-length")
     #expect(enrichment.reviewCount == 2)
     #expect(enrichment.averageReviewScore == 92)
+    #expect(enrichment.coverImageURL == URL(string: "https://www.metal-archives.com/images/1/3/6/9/1369559.jpeg?0948"))
 }
 
 @Test func metalArchivesBandExtractorBuildsRecommendationEnrichment() throws {
